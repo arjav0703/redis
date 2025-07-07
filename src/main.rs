@@ -11,23 +11,27 @@ async fn main() {
 
         match stream {
             Ok((mut stream, _)) => {
-                println!("accepted new connection");
+                //println!("accepted new connection");
 
                 tokio::spawn(async move {
-                    let mut buf = [0; 512];
-                    loop {
-                        let read_count = stream.read(&mut buf).await.unwrap();
-                        if read_count == 0 {
-                            break;
-                        }
-
-                        stream.write(b"+PONG\r\n").await.unwrap();
-                    }
+                    handle_req(stream).await;
                 });
             }
             Err(e) => {
                 println!("error: {e}");
             }
         }
+    }
+}
+
+async fn handle_req(mut stream: tokio::net::TcpStream) {
+    let mut buf = [0; 512];
+    loop {
+        let read_count = stream.read(&mut buf).await.unwrap();
+        if read_count == 0 {
+            break;
+        }
+
+        stream.write(b"+PONG\r\n").await.unwrap();
     }
 }
