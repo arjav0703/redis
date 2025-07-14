@@ -32,6 +32,29 @@ async fn handle_req(mut stream: tokio::net::TcpStream) {
             break;
         }
 
-        stream.write(b"+PONG\r\n").await.unwrap();
+        let request = resp_string_decode(&buf[..read_count]);
+        println!("Received request: {}", request);
+        stream.write_all(b"+PONG\r\n").await.unwrap();
     }
+}
+
+fn resp_string_decode(buf: &[u8]) -> String {
+    if buf.is_empty() {
+        return String::new();
+    }
+
+    // Remove the leading '+' and trailing CRLF
+    let mut s = String::from_utf8_lossy(buf).to_string();
+    if s.ends_with("\r\n") {
+        s.truncate(s.len() - 2);
+    }
+    if s.starts_with('+') {
+        s.remove(0);
+    }
+
+    s.trim().to_string()
+}
+
+struct RedisResponse {
+    data: String,
 }
