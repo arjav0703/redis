@@ -1,34 +1,40 @@
-[![progress-banner](https://backend.codecrafters.io/progress/redis/74556c1f-1cc5-4a48-9253-80e710f342c0)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+# Redis 
 
-This is a starting point for Rust solutions to the
-["Build Your Own Redis" Challenge](https://codecrafters.io/challenges/redis).
+This is a simple Redis server written in Rust 🦀.
 
-In this challenge, you'll build a toy Redis clone that's capable of handling
-basic commands like `PING`, `SET` and `GET`. Along the way we'll learn about
-event loops, the Redis protocol and more.
+### Supported Commands
+- `ECHO`
+- `PING`
+- `SET`
+- `GET`
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
 
-# Passing the first stage
-
-The entry point for your Redis implementation is in `src/main.rs`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
-
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
+### How to use: 
+Download the binary from the [releases](github.com/arjav0703/redis/releases) page or build it from source using
+```bash
+git clone https://github.com/arjav0703/redis.git
+cd redis
+cargo run
 ```
 
-That's all!
+### Testing Instructions
 
-# Stage 2 & beyond
+1. Install Redis cli from https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/
+2. Start the Redis server using the above instructions.
+3. Open a new terminal and run the Redis CLI:
+```bash
+redis-cli PING
+redis-cli ECHO "Hello, Redis!"
+redis-cli SET key value
+redis-cli GET key
+```
 
-Note: This section is for stages 2 and beyond.
 
-1. Ensure you have `cargo (1.88)` installed locally
-1. Run `./your_program.sh` to run your Redis server, which is implemented in
-   `src/main.rs`. This command compiles your Rust project, so it might be slow
-   the first time you run it. Subsequent runs will be fast.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+--- 
+<div align="center">
+  <a href="https://shipwrecked.hackclub.com/?t=ghrm" target="_blank">
+    <img src="https://hc-cdn.hel1.your-objectstorage.com/s/v3/739361f1d440b17fc9e2f74e49fc185d86cbec14_badge.png" 
+         alt="This project is part of Shipwrecked, the world's first hackathon on an island!" 
+         style="width: 35%;">
+  </a>
+</div>

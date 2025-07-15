@@ -1,7 +1,7 @@
 [package]
-name = "codecrafters-redis"
+name = "redis"
 version = "0.1.0"
-authors = ["Codecrafters <hello@codecrafters.io>"]
+authors = ["Arjav Jain <arjavjain0703@gmail.com>"]
 edition = "2021"
 
 [dependencies]
