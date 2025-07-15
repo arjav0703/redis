@@ -1,5 +1,7 @@
+use bytes::BytesMut;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio::stream;
 
 #[tokio::main]
 async fn main() {
@@ -26,35 +28,51 @@ async fn main() {
 
 async fn handle_req(mut stream: tokio::net::TcpStream) {
     let mut buf = [0; 512];
+    let mut handler = RespHandler::new(stream);
+
     loop {
-        let read_count = stream.read(&mut buf).await.unwrap();
-        if read_count == 0 {
-            break;
+        let value = handler.read_value();
+
+        match value {
+            Some(_value) => {
+                println!("Received value");
+            }
+            _ => {
+                println!("No value received, waiting for more data...");
+            }
         }
 
-        let request = resp_string_decode(&buf[..read_count]);
-        println!("Received request: {}", request);
-        stream.write_all(b"+PONG\r\n").await.unwrap();
+        // let request = resp_string_decode(&buf[..read_count]);
+        // println!("Received request: {}", request);
     }
 }
 
-fn resp_string_decode(buf: &[u8]) -> String {
-    if buf.is_empty() {
-        return String::new();
-    }
-
-    // Remove the leading '+' and trailing CRLF
-    let mut s = String::from_utf8_lossy(buf).to_string();
-    if s.ends_with("\r\n") {
-        s.truncate(s.len() - 2);
-    }
-    if s.starts_with('+') {
-        s.remove(0);
-    }
-
-    s.trim().to_string()
+struct RespHandler {
+    stream: tokio::net::TcpStream,
+    buffer: BytesMut,
 }
 
-struct RedisResponse {
-    data: String,
+impl RespHandler {
+    fn new(stream: tokio::net::TcpStream) -> Self {
+        RespHandler {
+            stream,
+            buffer: BytesMut::with_capacity(1024),
+        }
+    }
+
+    fn read_value(&mut self) -> Option<RespValue> {
+        //
+        None
+    }
+
+    fn write_value(&mut self, value: RespValue) {}
+}
+
+#[allow(dead_code)]
+enum RespValue {
+    SimpleString(String),
+    Error(String),
+    Integer(i64),
+    BulkString(Option<String>),
+    Array(Vec<RespValue>),
 }
