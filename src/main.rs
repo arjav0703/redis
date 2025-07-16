@@ -58,19 +58,20 @@ async fn handle_client(stream: TcpStream, db: Arc<Mutex<HashMap<String, String>>
                             handler
                                 .write_value(RespValue::SimpleString("OK".into()))
                                 .await?;
-                            println!("Current DB state: {:?}", db);
+                            println!("Current DB state: {db:?}");
 
-                            if items.len() >= 3 {
+                            if items.len() >= 5 {
                                 let third_option = items[3].as_string();
                                 if third_option == Some("PX".to_string()) {
-                                    println!("PX detected");
+                                    let px_value = items.get(4).and_then(|v| v.as_string());
+                                    println!("PX detected: {px_value:?}");
                                 }
                             }
                         }
                         "GET" if items.len() == 2 => {
                             let key = items[1].as_string().unwrap_or_default();
                             println!("GET request for key: {key}");
-                            println!("Current DB state: {:?}", db);
+                            println!("Current DB state: {db:?}");
                             let db = db.lock().unwrap();
                             if let Some(value) = db.get(&key) {
                                 handler
