@@ -1,6 +1,9 @@
 use anyhow::{anyhow, Result};
 use bytes::{Buf, BytesMut};
+// use log::info;
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::Mutex;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -11,19 +14,24 @@ async fn main() -> Result<()> {
     println!("Mini‑Redis listening on 127.0.0.1:6379");
     let listener = TcpListener::bind("127.0.0.1:6379").await?;
 
+    let db = Arc::new(Mutex::new(HashMap::<String, String>::new()));
+
     loop {
         let (stream, _) = listener.accept().await?;
-        tokio::spawn(async move {
-            if let Err(e) = handle_client(stream).await {
-                eprintln!("connection error: {e:#}");
-            }
-        });
+
+        let db = db.clone();
+
+        // tokio::spawn(async move {
+        if let Err(e) = handle_client(stream, db).await {
+            eprintln!("connection error: {e:#}");
+        }
+        // });
     }
 }
 
-async fn handle_client(stream: TcpStream) -> Result<()> {
+async fn handle_client(stream: TcpStream, db: Arc<Mutex<HashMap<String, String>>>) -> Result<()> {
     let mut handler = RespHandler::new(stream);
-    let mut db: HashMap<String, String> = HashMap::new();
+    // let mut db: HashMap<String, String> = HashMap::new();
 
     while let Some(val) = handler.read_value().await? {
         match val {
@@ -47,17 +55,23 @@ async fn handle_client(stream: TcpStream) -> Result<()> {
                         "SET" if items.len() >= 3 => {
                             let key = items[1].as_string().unwrap_or_default();
                             let val = items[2].as_string().unwrap_or_default();
+                            let mut db = db.lock().unwrap();
                             db.insert(key, val);
                             handler
                                 .write_value(RespValue::SimpleString("OK".into()))
                                 .await?;
+                            println!("Current DB state: {:?}", db);
                         }
                         "GET" if items.len() == 2 => {
                             let key = items[1].as_string().unwrap_or_default();
+                            println!("GET request for key: {key}");
+                            println!("Current DB state: {:?}", db);
+                            let db = db.lock().unwrap();
                             if let Some(value) = db.get(&key) {
                                 handler
                                     .write_value(RespValue::BulkString(value.clone()))
                                     .await?;
+                                println!("Value found: {value}");
                             } else {
                                 handler
                                     .write_value(RespValue::BulkString(String::new()))
@@ -205,6 +219,3 @@ fn parse_array(buf: &[u8]) -> Result<(RespValue, usize)> {
     }
     Ok((RespValue::Array(items), consumed))
 }
-
-
-
