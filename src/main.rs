@@ -84,6 +84,17 @@ async fn handle_client(stream: TcpStream, db: Arc<Mutex<HashMap<String, String>>
                                     .await?;
                             }
                         }
+                        "DEL" if items.len() >= 2 => {
+                            let mut db = db.lock().unwrap();
+                            for i in 1..items.len() {
+                                let key = items[i].as_string().unwrap_or_default();
+                                db.remove(&key);
+                                println!("Deleted key: {key}");
+                            }
+                            handler
+                                .write_value(RespValue::SimpleString("OK".into()))
+                                .await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
