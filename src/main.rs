@@ -128,7 +128,7 @@ async fn handle_client(
                                         // Key has expired, remove it
                                         db.remove(&key);
                                         handler
-                                            .write_value(RespValue::BulkString(String::new()))
+                                            .write_value(RespValue::SimpleString("".to_string()))
                                             .await?;
                                         println!("Key expired: {key}");
                                         continue;
