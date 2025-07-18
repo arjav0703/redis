@@ -1,10 +1,17 @@
 use crate::parsers::{parse_array, parse_bulk, parse_int, parse_simple};
 use anyhow::{anyhow, Result};
 use bytes::{Buf, BytesMut};
+use std::time::{Duration, Instant};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
+
+#[derive(Debug, Clone)]
+pub struct KeyWithExpiry {
+    pub value: String,
+    pub expiry: Option<Instant>,
+}
 
 pub struct RespHandler {
     stream: TcpStream,
@@ -80,6 +87,14 @@ impl RespValue {
     pub fn as_string(&self) -> Option<String> {
         match self {
             RespValue::BulkString(s) | RespValue::SimpleString(s) => Some(s.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn as_integer(&self) -> Option<i64> {
+        match self {
+            RespValue::Integer(i) => Some(*i),
+            RespValue::BulkString(s) | RespValue::SimpleString(s) => s.parse::<i64>().ok(),
             _ => None,
         }
     }
