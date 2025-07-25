@@ -1,9 +1,9 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Mutex;
 use tokio::time;
 pub mod parsers;
 mod types;
@@ -14,24 +14,26 @@ async fn main() -> Result<()> {
     println!("Mini‑Redis listening on 127.0.0.1:6379");
     let listener = TcpListener::bind("127.0.0.1:6379").await?;
 
-    let db = Arc::new(Mutex::new(HashMap::<String, KeyWithExpiry>::new()));
+    let db = Arc::new(tokio::sync::Mutex::new(
+        HashMap::<String, KeyWithExpiry>::new(),
+    ));
 
     loop {
         let (stream, _) = listener.accept().await?;
 
         let db = db.clone();
 
-        // tokio::spawn(async move {
-        if let Err(e) = handle_client(stream, db).await {
-            eprintln!("connection error: {e:#}");
-        }
-        // });
+        tokio::spawn(async move {
+            if let Err(e) = handle_client(stream, db).await {
+                eprintln!("connection error: {e:#}");
+            }
+        });
     }
 }
 
 async fn handle_client(
     stream: TcpStream,
-    db: Arc<Mutex<HashMap<String, KeyWithExpiry>>>,
+    db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
 ) -> Result<()> {
     let mut handler = RespHandler::new(stream);
     // let mut db: HashMap<String, String> = HashMap::new();
@@ -62,7 +64,8 @@ async fn handle_client(
 
                             // Handle PX argument for expiry
                             if items.len() >= 5 {
-                                let third_option = items[3].as_string();
+                                let third_option =
+                                    items[3].as_string().map(|s| s.to_ascii_uppercase());
                                 if third_option == Some("PX".to_string()) {
                                     if let Some(px_ms) = items.get(4).and_then(|v| v.as_integer()) {
                                         if px_ms > 0 {
@@ -77,7 +80,7 @@ async fn handle_client(
                             }
 
                             {
-                                let mut db = db.lock().unwrap();
+                                let mut db = db.lock().await;
                                 db.insert(key.clone(), KeyWithExpiry { value: val, expiry });
                                 handler
                                     .write_value(RespValue::SimpleString("OK".into()))
@@ -99,7 +102,7 @@ async fn handle_client(
                                         }
 
                                         // Delete the key if it still has the same expiry time
-                                        let mut db = db_clone.lock().unwrap();
+                                        let mut db = db_clone.lock().await;
                                         if let Some(entry) = db.get(&key_clone) {
                                             if let Some(entry_expiry) = entry.expiry {
                                                 if entry_expiry <= Instant::now() {
@@ -119,17 +122,14 @@ async fn handle_client(
                             let key = items[1].as_string().unwrap_or_default();
                             println!("GET request for key: {key}");
                             println!("Current DB state: {db:?}");
-                            let mut db = db.lock().unwrap();
+                            let mut db = db.lock().await;
 
                             // Check if the key exists and hasn't expired
                             if let Some(entry) = db.get(&key) {
                                 if let Some(expiry) = entry.expiry {
                                     if expiry <= Instant::now() {
-                                        // Key has expired, remove it
                                         db.remove(&key);
-                                        handler
-                                            .write_value(RespValue::SimpleString("".to_string()))
-                                            .await?;
+                                        handler.write_value(RespValue::NullBulkString).await?;
                                         println!("Key expired: {key}");
                                         continue;
                                     }
@@ -140,13 +140,11 @@ async fn handle_client(
                                     .await?;
                                 println!("Value found: {}", entry.value);
                             } else {
-                                handler
-                                    .write_value(RespValue::BulkString(String::new()))
-                                    .await?;
+                                handler.write_value(RespValue::NullBulkString).await?;
                             }
                         }
                         "DEL" if items.len() >= 2 => {
-                            let mut db = db.lock().unwrap();
+                            let mut db = db.lock().await;
                             let mut deleted_count = 0;
                             for i in 1..items.len() {
                                 let key = items[i].as_string().unwrap_or_default();

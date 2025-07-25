@@ -2,6 +2,7 @@ use crate::parsers::{parse_array, parse_bulk, parse_int, parse_simple};
 use anyhow::{anyhow, Result};
 use bytes::{Buf, BytesMut};
 use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
@@ -64,6 +65,7 @@ pub fn parse_msg(buf: &[u8]) -> Result<(RespValue, usize)> {
 pub enum RespValue {
     SimpleString(String),
     BulkString(String),
+    NullBulkString,
     Integer(i64),
     Array(Vec<RespValue>),
 }
@@ -73,6 +75,10 @@ impl RespValue {
         match self {
             RespValue::SimpleString(s) => format!("+{s}\r\n"),
             RespValue::BulkString(s) => format!("${}\r\n{s}\r\n", s.len()),
+            RespValue::NullBulkString => {
+                println!("Encoding NullBulkString as $-1\\r\\n");
+                "$-1\r\n".to_string()
+            }
             RespValue::Integer(i) => format!(":{i}\r\n"),
             RespValue::Array(items) => {
                 let mut out = format!("*{}\r\n", items.len());
