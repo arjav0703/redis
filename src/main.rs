@@ -6,6 +6,9 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::time;
 pub mod parsers;
 mod types;
+use std::env;
+pub mod cli;
+use cli::set_env_vars;
 use types::{KeyWithExpiry, RespHandler, RespValue};
 
 #[tokio::main]
@@ -165,15 +168,23 @@ async fn handle_client(
                                         match key.to_ascii_uppercase().as_str() {
                                             "DIR" => {
                                                 let dir = env::var("dir").unwrap_or_default();
+                                                let resp_vec = vec![
+                                                    RespValue::BulkString("dir".into()),
+                                                    RespValue::BulkString(dir),
+                                                ];
                                                 handler
-                                                    .write_value(RespValue::BulkString(dir))
+                                                    .write_value(RespValue::Array(resp_vec))
                                                     .await?;
                                             }
                                             "DBFILENAME" => {
                                                 let dbfilename =
                                                     env::var("dbfilename").unwrap_or_default();
+                                                let resp_vec = vec![
+                                                    RespValue::BulkString("dbfilename".into()),
+                                                    RespValue::BulkString(dbfilename),
+                                                ];
                                                 handler
-                                                    .write_value(RespValue::BulkString(dbfilename))
+                                                    .write_value(RespValue::Array(resp_vec))
                                                     .await?;
                                             }
                                             _ => {
@@ -210,10 +221,4 @@ async fn handle_client(
         }
     }
     Ok(())
-}
-
-use std::env;
-fn set_env_vars() {
-    env::set_var("dir", "./data");
-    env::set_var("dbfilename", "mini-redis-database.rdb");
 }
