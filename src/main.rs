@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::Mutex;
 use tokio::time;
 pub mod parsers;
 mod types;
@@ -11,6 +10,7 @@ use types::{KeyWithExpiry, RespHandler, RespValue};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    set_env_vars();
     println!("Mini‑Redis listening on 127.0.0.1:6379");
     let listener = TcpListener::bind("127.0.0.1:6379").await?;
 
@@ -73,7 +73,7 @@ async fn handle_client(
                                                 Instant::now()
                                                     + Duration::from_millis(px_ms as u64),
                                             );
-                                            println!("PX detected: {}ms", px_ms);
+                                            println!("PX detected: {px_ms}ms");
                                         }
                                     }
                                 }
@@ -108,8 +108,7 @@ async fn handle_client(
                                                 if entry_expiry <= Instant::now() {
                                                     db.remove(&key_clone);
                                                     println!(
-                                                        "Key expired and removed: {}",
-                                                        key_clone
+                                                        "Key expired and removed: {key_clone}"
                                                     );
                                                 }
                                             }
@@ -157,6 +156,43 @@ async fn handle_client(
                                 .write_value(RespValue::Integer(deleted_count))
                                 .await?;
                         }
+                        "CONFIG" => {
+                            let subcommand = items.get(1).and_then(|v| v.as_string());
+                            match subcommand {
+                                Some(cmd) if cmd.to_ascii_uppercase() == "GET" => {
+                                    if items.len() == 3 {
+                                        let key = items[2].as_string().unwrap_or_default();
+                                        match key.to_ascii_uppercase().as_str() {
+                                            "DIR" => {
+                                                let dir = env::var("dir").unwrap_or_default();
+                                                handler
+                                                    .write_value(RespValue::BulkString(dir))
+                                                    .await?;
+                                            }
+                                            "DBFILENAME" => {
+                                                let dbfilename =
+                                                    env::var("dbfilename").unwrap_or_default();
+                                                handler
+                                                    .write_value(RespValue::BulkString(dbfilename))
+                                                    .await?;
+                                            }
+                                            _ => {
+                                                handler
+                                                    .write_value(RespValue::NullBulkString)
+                                                    .await?;
+                                            }
+                                        }
+                                    } else {
+                                        handler.write_value(RespValue::NullBulkString).await?;
+                                    }
+                                }
+                                _ => {
+                                    handler
+                                        .write_value(RespValue::SimpleString("OK".into()))
+                                        .await?;
+                                }
+                            }
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
@@ -174,4 +210,10 @@ async fn handle_client(
         }
     }
     Ok(())
+}
+
+use std::env;
+fn set_env_vars() {
+    env::set_var("dir", "./data");
+    env::set_var("dbfilename", "mini-redis-database.rdb");
 }

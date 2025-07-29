@@ -1,8 +1,7 @@
 use crate::parsers::{parse_array, parse_bulk, parse_int, parse_simple};
 use anyhow::{anyhow, Result};
 use bytes::{Buf, BytesMut};
-use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
+use std::time::Instant;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
