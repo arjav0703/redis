@@ -12,7 +12,7 @@ pub fn set_env_vars() {
 pub struct Cli {
     #[clap(short, long, default_value = ".")]
     dir: Option<String>,
-    #[clap(short, long, default_value = "mini-redis-database.rdb")]
+    #[clap(long, default_value = "mini-redis-database.rdb")]
     dbfilename: Option<String>,
 }
 
