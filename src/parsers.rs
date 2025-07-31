@@ -9,7 +9,7 @@ pub fn parse_simple(buf: &[u8]) -> Result<(RespValue, usize)> {
     Ok((RespValue::SimpleString(s), 1 + end + 2))
 }
 
-/// Function used to parse a bulk string
+/// Function used to parse a bulk string in the RESP format.
 pub fn parse_bulk(buf: &[u8]) -> Result<(RespValue, usize)> {
     let len_end = find_crlf(&buf[1..]).ok_or(anyhow!("incomplete bulk len"))?;
     let len: usize = std::str::from_utf8(&buf[1..1 + len_end])?.parse()?;
@@ -29,7 +29,7 @@ pub fn parse_int(buf: &[u8]) -> Result<(RespValue, usize)> {
     Ok((RespValue::Integer(n), 1 + end + 2))
 }
 
-/// Function used to parse an array
+/// Function used to parse an array in the RESP format.
 pub fn parse_array(buf: &[u8]) -> Result<(RespValue, usize)> {
     let len_end = find_crlf(&buf[1..]).ok_or(anyhow!("incomplete array len"))?;
     let count: usize = std::str::from_utf8(&buf[1..1 + len_end])?.parse()?;
@@ -44,7 +44,7 @@ pub fn parse_array(buf: &[u8]) -> Result<(RespValue, usize)> {
     Ok((RespValue::Array(items), consumed))
 }
 
-/// Function used to find if a RESP string contains a crlf (/r/n) and ... (tbh, idk what it does)
+/// Function used to find if a RESP string contains a crlf (/r/n) sequence.
 fn find_crlf(buf: &[u8]) -> Option<usize> {
     buf.windows(2).position(|w| w == b"\r\n")
 }
