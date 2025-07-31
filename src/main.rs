@@ -1,15 +1,13 @@
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::time;
+pub mod cli;
 pub mod parsers;
 mod types;
-use std::env;
-pub mod cli;
 use cli::set_env_vars;
 use types::{KeyWithExpiry, RespHandler, RespValue};
+mod db_handler;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -47,162 +45,21 @@ async fn handle_client(
                 if let RespValue::BulkString(cmd) | RespValue::SimpleString(cmd) = &items[0] {
                     let cmd_upper = cmd.to_ascii_uppercase();
                     match cmd_upper.as_str() {
-                        "PING" => {
-                            let payload = if items.len() > 1 {
-                                items[1].as_string().unwrap_or_else(|| "PONG".into())
-                            } else {
-                                "PONG".into()
-                            };
-                            handler
-                                .write_value(RespValue::SimpleString(payload))
-                                .await?;
-                        }
+                        "PING" => db_handler::send_pong(&mut handler, &items).await?,
                         "ECHO" if items.len() == 2 => {
                             handler.write_value(items[1].clone()).await?;
                         }
                         "SET" if items.len() >= 3 => {
-                            let key = items[1].as_string().unwrap_or_default();
-                            let val = items[2].as_string().unwrap_or_default();
-                            let mut expiry = None;
-
-                            // Handle PX argument for expiry
-                            if items.len() >= 5 {
-                                let third_option =
-                                    items[3].as_string().map(|s| s.to_ascii_uppercase());
-                                if third_option == Some("PX".to_string()) {
-                                    if let Some(px_ms) = items.get(4).and_then(|v| v.as_integer()) {
-                                        if px_ms > 0 {
-                                            expiry = Some(
-                                                Instant::now()
-                                                    + Duration::from_millis(px_ms as u64),
-                                            );
-                                            println!("PX detected: {px_ms}ms");
-                                        }
-                                    }
-                                }
-                            }
-
-                            {
-                                let mut db = db.lock().await;
-                                db.insert(key.clone(), KeyWithExpiry { value: val, expiry });
-                                handler
-                                    .write_value(RespValue::SimpleString("OK".into()))
-                                    .await?;
-                                println!("Current DB state: {db:?}");
-                            }
-
-                            // Start a background task to handle expiry if needed
-                            if expiry.is_some() {
-                                let db_clone = Arc::clone(&db);
-                                let key_clone = key.clone();
-                                let expiry_clone = expiry;
-                                tokio::spawn(async move {
-                                    if let Some(exp_time) = expiry_clone {
-                                        let now = Instant::now();
-                                        if exp_time > now {
-                                            let sleep_duration = exp_time.duration_since(now);
-                                            time::sleep(sleep_duration).await;
-                                        }
-
-                                        // Delete the key if it still has the same expiry time
-                                        let mut db = db_clone.lock().await;
-                                        if let Some(entry) = db.get(&key_clone) {
-                                            if let Some(entry_expiry) = entry.expiry {
-                                                if entry_expiry <= Instant::now() {
-                                                    db.remove(&key_clone);
-                                                    println!(
-                                                        "Key expired and removed: {key_clone}"
-                                                    );
-                                                }
-                                            }
-                                        }
-                                    }
-                                });
-                            }
+                            db_handler::set_key(&db, &items, &mut handler).await?
                         }
                         "GET" if items.len() == 2 => {
-                            let key = items[1].as_string().unwrap_or_default();
-                            println!("GET request for key: {key}");
-                            println!("Current DB state: {db:?}");
-                            let mut db = db.lock().await;
-
-                            // Check if the key exists and hasn't expired
-                            if let Some(entry) = db.get(&key) {
-                                if let Some(expiry) = entry.expiry {
-                                    if expiry <= Instant::now() {
-                                        db.remove(&key);
-                                        handler.write_value(RespValue::NullBulkString).await?;
-                                        println!("Key expired: {key}");
-                                        continue;
-                                    }
-                                }
-
-                                handler
-                                    .write_value(RespValue::BulkString(entry.value.clone()))
-                                    .await?;
-                                println!("Value found: {}", entry.value);
-                            } else {
-                                handler.write_value(RespValue::NullBulkString).await?;
-                            }
+                            db_handler::get_key(&db, &items, &mut handler).await?
                         }
                         "DEL" if items.len() >= 2 => {
-                            let mut db = db.lock().await;
-                            let mut deleted_count = 0;
-                            for i in 1..items.len() {
-                                let key = items[i].as_string().unwrap_or_default();
-                                if db.remove(&key).is_some() {
-                                    deleted_count += 1;
-                                    println!("Deleted key: {key}");
-                                }
-                            }
-                            handler
-                                .write_value(RespValue::Integer(deleted_count))
-                                .await?;
+                            db_handler::del_key(&db, &items, &mut handler).await?
                         }
                         "CONFIG" => {
-                            let subcommand = items.get(1).and_then(|v| v.as_string());
-                            match subcommand {
-                                Some(cmd) if cmd.to_ascii_uppercase() == "GET" => {
-                                    if items.len() == 3 {
-                                        let key = items[2].as_string().unwrap_or_default();
-                                        match key.to_ascii_uppercase().as_str() {
-                                            "DIR" => {
-                                                let dir = env::var("dir").unwrap_or_default();
-                                                let resp_vec = vec![
-                                                    RespValue::BulkString("dir".into()),
-                                                    RespValue::BulkString(dir),
-                                                ];
-                                                handler
-                                                    .write_value(RespValue::Array(resp_vec))
-                                                    .await?;
-                                            }
-                                            "DBFILENAME" => {
-                                                let dbfilename =
-                                                    env::var("dbfilename").unwrap_or_default();
-                                                let resp_vec = vec![
-                                                    RespValue::BulkString("dbfilename".into()),
-                                                    RespValue::BulkString(dbfilename),
-                                                ];
-                                                handler
-                                                    .write_value(RespValue::Array(resp_vec))
-                                                    .await?;
-                                            }
-                                            _ => {
-                                                handler
-                                                    .write_value(RespValue::NullBulkString)
-                                                    .await?;
-                                            }
-                                        }
-                                    } else {
-                                        handler.write_value(RespValue::NullBulkString).await?;
-                                    }
-                                }
-                                _ => {
-                                    handler
-                                        .write_value(RespValue::SimpleString("OK".into()))
-                                        .await?;
-                                }
-                            }
+                            db_handler::handle_config(&items, &mut handler).await?;
                         }
                         _ => {
                             handler
