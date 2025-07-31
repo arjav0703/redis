@@ -32,6 +32,7 @@ async fn main() -> Result<()> {
     }
 }
 
+/// Function to handle the requests made (rerun everytime a request is received)
 async fn handle_client(
     stream: TcpStream,
     db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
@@ -70,7 +71,6 @@ async fn handle_client(
                 }
             }
             _ => {
-                // Anything else -> just PONG
                 handler
                     .write_value(RespValue::SimpleString("PONG".into()))
                     .await?;

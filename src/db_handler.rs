@@ -7,6 +7,8 @@ use std::env;
 use std::time::{Duration, Instant};
 use tokio::time;
 
+/// Intended to handle the ping command. it the string provided after the ping command or defaults
+/// to PONG if nothing ilse is provided
 pub async fn send_pong(handler: &mut RespHandler, items: &[RespValue]) -> Result<()> {
     let payload = if items.len() > 1 {
         items[1].as_string().unwrap_or_else(|| "PONG".into())
@@ -19,6 +21,7 @@ pub async fn send_pong(handler: &mut RespHandler, items: &[RespValue]) -> Result
     Ok(())
 }
 
+/// Pretty self explainatory: used to swt a key into the db
 pub async fn set_key(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     items: &[RespValue],
@@ -79,6 +82,7 @@ pub async fn set_key(
     Ok(())
 }
 
+/// Pretty self explainatory: used to get a key from the db
 pub async fn get_key(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     items: &[RespValue],
@@ -109,6 +113,7 @@ pub async fn get_key(
     Ok(())
 }
 
+/// Pretty self explainatory: used to delete a key from the db
 pub async fn del_key(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     items: &[RespValue],
@@ -129,6 +134,7 @@ pub async fn del_key(
     Ok(())
 }
 
+/// Still in work, intended to handle the config command
 pub async fn handle_config(
     // db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     items: &[RespValue],
@@ -136,7 +142,7 @@ pub async fn handle_config(
 ) -> Result<()> {
     let subcommand = items.get(1).and_then(|v| v.as_string());
     match subcommand {
-        Some(cmd) if cmd.to_ascii_uppercase() == "GET" => {
+        Some(cmd) if cmd.eq_ignore_ascii_case("GET") => {
             if items.len() == 3 {
                 let key = items[2].as_string().unwrap_or_default();
                 match key.to_ascii_uppercase().as_str() {

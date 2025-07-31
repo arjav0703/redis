@@ -7,18 +7,21 @@ use tokio::{
     net::TcpStream,
 };
 
+/// Struct to store a key inside the hashmap. It allows you to set an expiry time (optional)
 #[derive(Debug, Clone)]
 pub struct KeyWithExpiry {
     pub value: String,
     pub expiry: Option<Instant>,
 }
 
+/// Pretty obvious
 pub struct RespHandler {
     stream: TcpStream,
     buf: BytesMut,
 }
 
 impl RespHandler {
+    /// Use to create a new one to start off with
     pub fn new(stream: TcpStream) -> Self {
         Self {
             stream,
@@ -26,6 +29,7 @@ impl RespHandler {
         }
     }
 
+    /// idk what it does (vibe coded)
     pub async fn read_value(&mut self) -> Result<Option<RespValue>> {
         loop {
             if let Ok((v, used)) = parse_msg(&self.buf) {
@@ -41,12 +45,15 @@ impl RespHandler {
         }
     }
 
+    /// Writes stuff to the stream. it takes a respvalue enum (see below) as argument.
     pub async fn write_value(&mut self, v: RespValue) -> Result<()> {
         self.stream.write_all(v.encode().as_bytes()).await?;
         Ok(())
     }
 }
 
+/// A simple check to determine if the incoming data (expected to be a RESP datatype) is of what
+/// type
 pub fn parse_msg(buf: &[u8]) -> Result<(RespValue, usize)> {
     if buf.is_empty() {
         return Err(anyhow!("need more data"));

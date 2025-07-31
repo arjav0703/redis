@@ -1,21 +1,15 @@
 use clap::Parser;
 use std::env;
 
+/// Function to get 'dir' and 'dbfilename' parameters from CLI args and set them as env variables
+/// for later use
 pub fn set_env_vars() {
     let (dir, dbfilename) = getargs();
     env::set_var("dir", dir);
     env::set_var("dbfilename", dbfilename);
 }
 
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-pub struct Cli {
-    #[clap(short, long, default_value = ".")]
-    dir: Option<String>,
-    #[clap(long, default_value = "mini-redis-database.rdb")]
-    dbfilename: Option<String>,
-}
-
+/// Gets args :)
 fn getargs() -> (String, String) {
     let args = Cli::parse();
 
@@ -25,4 +19,13 @@ fn getargs() -> (String, String) {
         .unwrap_or("mini-redis-database.rdb".to_string());
 
     (dir, dbfilename)
+}
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+pub struct Cli {
+    #[clap(short, long, default_value = ".")]
+    dir: Option<String>,
+    #[clap(long, default_value = "mini-redis-database.rdb")]
+    dbfilename: Option<String>,
 }
