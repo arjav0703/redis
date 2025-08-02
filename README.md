@@ -7,6 +7,7 @@ This is a simple Redis server written in Rust 🦀.
 - `PING`
 - `SET`
 - `GET`
+- `CONFIG GET`
 
 
 ### How to use: 
@@ -27,6 +28,17 @@ redis-cli PING
 redis-cli ECHO "Hello, Redis!"
 redis-cli SET key value
 redis-cli GET key
+
+# setting a key with expiry
+redis-cli SET fruit banana PX 100 # milliseconds
+redis-cli GET fruit
+
+sleep 0.1 
+redis-cli GET fruit # should return nil
+
+# Using the CONFIG command (partial support)
+redis-cli CONFIG GET dir 
+redis-cli CONFIG GET dbfilename
 ```
 
 
