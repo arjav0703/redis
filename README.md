@@ -12,12 +12,17 @@ This is a simple Redis server written in Rust 🦀.
 
 ### How to use: 
 Download the binary from the [releases](github.com/arjav0703/redis/releases) page or build it from source using
+Binary: 
+```bash
+./redis --dir ./ --dbfilename dump.rdb
+```
+
+Source code:
 ```bash
 git clone https://github.com/arjav0703/redis.git
 cd redis
-cargo run
+cargo run -- --dir ./ --dbfilename dump.rdb
 ```
-
 ### Testing Instructions
 
 1. Install Redis cli from https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/
