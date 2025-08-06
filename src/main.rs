@@ -8,6 +8,7 @@ mod types;
 use cli::set_env_vars;
 use types::{KeyWithExpiry, RespHandler, RespValue};
 mod db_handler;
+mod file_handler;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -15,10 +16,15 @@ async fn main() -> Result<()> {
     println!("Mini‑Redis listening on 127.0.0.1:6379");
     let listener = TcpListener::bind("127.0.0.1:6379").await?;
 
+    let initial_db = file_handler::read_rdb_file().await?;
+    println!("Initial DB state from RDB file: {initial_db:?}");
     let db = Arc::new(tokio::sync::Mutex::new(
         HashMap::<String, KeyWithExpiry>::new(),
     ));
-
+    {
+        let mut db_lock = db.lock().await;
+        *db_lock = initial_db;
+    }
     loop {
         let (stream, _) = listener.accept().await?;
 

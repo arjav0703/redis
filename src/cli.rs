@@ -14,9 +14,7 @@ fn getargs() -> (String, String) {
     let args = Cli::parse();
 
     let dir = args.dir.unwrap_or(".".to_string());
-    let dbfilename = args
-        .dbfilename
-        .unwrap_or("mini-redis-database.rdb".to_string());
+    let dbfilename = args.dbfilename.unwrap_or("dump.rdb".to_string());
 
     (dir, dbfilename)
 }
@@ -26,6 +24,6 @@ fn getargs() -> (String, String) {
 pub struct Cli {
     #[clap(short, long, default_value = ".")]
     dir: Option<String>,
-    #[clap(long, default_value = "mini-redis-database.rdb")]
+    #[clap(long, default_value = "dump.rdb")]
     dbfilename: Option<String>,
 }
