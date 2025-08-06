@@ -1,4 +1,4 @@
-use crate::types::{KeyWithExpiry, RespHandler, RespValue};
+use crate::types::KeyWithExpiry;
 use anyhow::{Ok, Result};
 use std::collections::HashMap;
 use std::env;
@@ -11,7 +11,10 @@ pub async fn read_rdb_file() -> Result<HashMap<String, KeyWithExpiry>> {
     let dir = env::var("dir").expect("unexpected env var dir");
     let path = format!("{dir}/{dbfilename}");
     dbg!(&path);
-    let mut file = File::open(path).await?;
+    if tokio::fs::metadata(&path).await.is_err() {
+        return Ok(HashMap::new());
+    }
+    let mut file = File::open(path).await.expect("failed to open file");
     let mut contents = Vec::new();
     file.read_to_end(&mut contents).await?;
     dbg!(&contents);
