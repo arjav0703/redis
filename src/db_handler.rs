@@ -179,3 +179,26 @@ pub async fn handle_config(
 
     Ok(())
 }
+
+pub async fn handle_key_search(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    pattern: &str,
+    handler: &mut RespHandler,
+) -> Result<()> {
+    let db = db.lock().await;
+    let mut keys_found = Vec::new();
+
+    for key in db.keys() {
+        if key.contains(pattern) {
+            keys_found.push(RespValue::BulkString(key.clone()));
+        }
+    }
+
+    if keys_found.is_empty() {
+        handler.write_value(RespValue::NullBulkString).await?;
+    } else {
+        handler.write_value(RespValue::Array(keys_found)).await?;
+    }
+
+    Ok(())
+}
