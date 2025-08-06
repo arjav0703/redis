@@ -188,12 +188,17 @@ pub async fn handle_key_search(
     let db = db.lock().await;
     let mut keys_found = Vec::new();
 
-    for key in db.keys() {
-        if key.contains(pattern) {
+    if pattern == "*" {
+        for key in db.keys() {
             keys_found.push(RespValue::BulkString(key.clone()));
         }
+    } else {
+        for key in db.keys() {
+            if key.contains(pattern) {
+                keys_found.push(RespValue::BulkString(key.clone()));
+            }
+        }
     }
-
     if keys_found.is_empty() {
         handler.write_value(RespValue::NullBulkString).await?;
     } else {
