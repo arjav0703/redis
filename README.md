@@ -2,7 +2,7 @@
 
 This is a simple Redis server written in Rust 🦀.
 
-### Supported Commands
+### Supported Commands (through the redis-cli):
 - `ECHO`
 - `PING`
 - `SET`
@@ -10,6 +10,11 @@ This is a simple Redis server written in Rust 🦀.
 - `KEYS`
 - `CONFIG GET`
 - `INFO` (work in progress)
+
+### CLI args for the server:
+- `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
+- `--dbfilename <DBFILENAME>`: Name of the rdb file (default: dump.rdb)
+- `--port <PORT>`: Port to run the server on (default: 6379)
 
 
 ### How to use: 
