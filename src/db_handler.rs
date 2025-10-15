@@ -209,7 +209,7 @@ pub async fn handle_key_search(
 }
 
 pub async fn handle_info(handler: &mut RespHandler) -> Result<()> {
-    let info = format!("role:master");
+    let info = "role:master".to_string();
     handler.write_value(RespValue::BulkString(info)).await?;
     Ok(())
 }

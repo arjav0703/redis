@@ -9,6 +9,7 @@ This is a simple Redis server written in Rust 🦀.
 - `GET`
 - `KEYS`
 - `CONFIG GET`
+- `INFO` (work in progress)
 
 
 ### How to use: 
@@ -51,8 +52,15 @@ redis-cli CONFIG GET dbfilename
 redis-cli KEYS *
 # get keys that start with 'f'
 redis-cli KEYS f
-```
 
+# Using the INFO command (work in progress)
+redis-cli INFO replication
+```
+### Features
+- In-memory key-value store
+- Load previous state from RDB file
+- Set keys with expiry
+- Works with the official redis-cli
 
 --- 
 <div align="center">
