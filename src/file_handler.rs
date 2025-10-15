@@ -69,7 +69,7 @@ fn parse_rdb(contents: &str) -> Result<(Vec<String>, Vec<String>)> {
 
     let contents = contents.strip_prefix("fa").expect("error stripping prefix");
 
-    let metadata = contents[0..20].decode_str()?;
+    let metadata = contents[0..34].decode_str()?;
     dbg!(&metadata);
 
     Ok((vec![], vec![]))
