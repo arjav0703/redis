@@ -4,19 +4,20 @@ use std::env;
 /// Function to get 'dir' and 'dbfilename' parameters from CLI args and set them as env variables
 /// for later use
 pub fn set_env_vars() {
-    let (dir, dbfilename) = getargs();
+    let (dir, dbfilename, _) = getargs();
     env::set_var("dir", dir);
     env::set_var("dbfilename", dbfilename);
 }
 
 /// Gets args :)
-fn getargs() -> (String, String) {
+pub fn getargs() -> (String, String, String) {
     let args = Cli::parse();
 
     let dir = args.dir.unwrap_or(".".to_string());
     let dbfilename = args.dbfilename.unwrap_or("dump.rdb".to_string());
+    let port = args.port.unwrap_or("6379".to_string());
 
-    (dir, dbfilename)
+    (dir, dbfilename, port)
 }
 
 #[derive(Parser, Debug)]
@@ -26,4 +27,6 @@ pub struct Cli {
     dir: Option<String>,
     #[clap(long, default_value = "dump.rdb")]
     dbfilename: Option<String>,
+    #[clap(short, long, default_value = "6379")]
+    port: Option<String>,
 }

@@ -13,8 +13,11 @@ mod file_handler;
 #[tokio::main]
 async fn main() -> Result<()> {
     set_env_vars();
-    println!("Mini‑Redis listening on 127.0.0.1:6379");
-    let listener = TcpListener::bind("127.0.0.1:6379").await?;
+    let (_, _a, port) = cli::getargs();
+    let url = format!("127.0.0.1:{port}");
+
+    println!("Mini‑Redis listening on {url}");
+    let listener = TcpListener::bind(url).await?;
 
     let initial_db = file_handler::read_rdb_file().await?;
     println!("Initial DB state from RDB file: {initial_db:?}");
