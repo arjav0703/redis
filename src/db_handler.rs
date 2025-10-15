@@ -207,3 +207,9 @@ pub async fn handle_key_search(
 
     Ok(())
 }
+
+pub async fn handle_info(handler: &mut RespHandler) -> Result<()> {
+    let info = format!("role:master");
+    handler.write_value(RespValue::BulkString(info)).await?;
+    Ok(())
+}

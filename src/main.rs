@@ -75,6 +75,9 @@ async fn handle_client(
                             let pattern = items[1].as_string().unwrap_or_default();
                             db_handler::handle_key_search(&db, &pattern, &mut handler).await?;
                         }
+                        "INFO" if items.len() == 2 => {
+                            db_handler::handle_info(&mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
