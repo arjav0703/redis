@@ -2,7 +2,7 @@ use crate::types::KeyWithExpiry;
 use anyhow::{Ok, Result};
 use std::collections::HashMap;
 use std::env;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
@@ -66,7 +66,7 @@ fn parse_rdb(contents: &[u8]) -> Result<HashMap<String, KeyWithExpiry>> {
                 pos = new_pos;
             }
             0xFD => {
-                // Expiry in seconds
+                // Expiry in seconds (Unix timestamp)
                 let expiry_secs = u32::from_le_bytes([
                     contents[pos],
                     contents[pos + 1],
@@ -77,18 +77,24 @@ fn parse_rdb(contents: &[u8]) -> Result<HashMap<String, KeyWithExpiry>> {
                 let (key, value, new_pos) = read_key_value_pair(contents, pos)?;
                 pos = new_pos;
 
-                let expiry_instant = Instant::now() + Duration::from_secs(expiry_secs as u64);
-
-                db.insert(
-                    key,
-                    KeyWithExpiry {
-                        value,
-                        expiry: Some(expiry_instant),
-                    },
-                );
+                // Convert Unix timestamp to Instant
+                let expiry_timestamp = UNIX_EPOCH + Duration::from_secs(expiry_secs as u64);
+                let now = SystemTime::now();
+                
+                if let std::result::Result::Ok(duration_until_expiry) = expiry_timestamp.duration_since(now) {
+                    // Not expired yet
+                    db.insert(
+                        key,
+                        KeyWithExpiry {
+                            value,
+                            expiry: Some(Instant::now() + duration_until_expiry),
+                        },
+                    );
+                }
+                // If expired, don't insert into db
             }
             0xFC => {
-                // Expiry in milliseconds
+                // Expiry in milliseconds (Unix timestamp)
                 let expiry_ms = u64::from_le_bytes([
                     contents[pos],
                     contents[pos + 1],
@@ -103,15 +109,21 @@ fn parse_rdb(contents: &[u8]) -> Result<HashMap<String, KeyWithExpiry>> {
                 let (key, value, new_pos) = read_key_value_pair(contents, pos)?;
                 pos = new_pos;
 
-                let expiry_instant = Instant::now() + Duration::from_millis(expiry_ms);
-
-                db.insert(
-                    key,
-                    KeyWithExpiry {
-                        value,
-                        expiry: Some(expiry_instant),
-                    },
-                );
+                // Convert Unix timestamp to Instant
+                let expiry_timestamp = UNIX_EPOCH + Duration::from_millis(expiry_ms);
+                let now = SystemTime::now();
+                
+                if let std::result::Result::Ok(duration_until_expiry) = expiry_timestamp.duration_since(now) {
+                    // Not expired yet
+                    db.insert(
+                        key,
+                        KeyWithExpiry {
+                            value,
+                            expiry: Some(Instant::now() + duration_until_expiry),
+                        },
+                    );
+                }
+                // If expired, don't insert into db
             }
             0xFF => {
                 // End of file
