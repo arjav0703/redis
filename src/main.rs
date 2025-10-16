@@ -13,7 +13,7 @@ mod file_handler;
 #[tokio::main]
 async fn main() -> Result<()> {
     set_env_vars();
-    let (_, _a, port) = cli::getargs();
+    let (_, _a, port, _isreplica) = cli::getargs();
     let url = format!("127.0.0.1:{port}");
 
     println!("Mini‑Redis listening on {url}");

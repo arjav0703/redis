@@ -209,7 +209,10 @@ pub async fn handle_key_search(
 }
 
 pub async fn handle_info(handler: &mut RespHandler) -> Result<()> {
-    let info = "role:master".to_string();
+    let is_isreplica = env::var("replicaof").unwrap_or_default().is_empty() == false;
+    // dbg!(is_isreplica);
+    let role = if is_isreplica { "slave" } else { "master" };
+    let info = format!("role:{role}");
     handler.write_value(RespValue::BulkString(info)).await?;
     Ok(())
 }
