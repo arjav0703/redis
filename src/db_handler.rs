@@ -247,3 +247,37 @@ pub async fn handle_replconf(items: &[RespValue], handler: &mut RespHandler) -> 
 
     Ok(())
 }
+
+pub async fn handle_psync(
+    items: &[RespValue],
+    _db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    handler: &mut RespHandler,
+) -> Result<()> {
+    if items.len() >= 2 {
+        let replication_id = items[1].as_string().unwrap_or_default();
+        let offset = if items.len() >= 3 {
+            items[2].as_integer().unwrap_or(0)
+        } else {
+            0
+        };
+        println!("PSYNC request: id={replication_id}, offset={offset}");
+
+        // Get the master's replication ID from environment or generate a new one
+        let master_replication_id = env::var("replication_id").unwrap_or_else(|_| {
+            (0..40)
+                .map(|_| rand::rng().sample(Alphanumeric) as char)
+                .collect()
+        });
+
+        // Respond with FULLRESYNC using the master's replication ID and offset 0
+        let response = format!("FULLRESYNC {master_replication_id} 0");
+        handler
+            .write_value(RespValue::SimpleString(response))
+            .await?;
+    } else {
+        handler
+            .write_value(RespValue::SimpleString("ERR invalid PSYNC command".into()))
+            .await?;
+    }
+    Ok(())
+}

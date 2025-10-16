@@ -89,6 +89,9 @@ async fn handle_client(
                         "REPLCONF" => {
                             db_handler::handle_replconf(&items, &mut handler).await?;
                         }
+                        "PSYNC" if items.len() >= 2 => {
+                            db_handler::handle_psync(&items, &db, &mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
