@@ -1,5 +1,5 @@
 use std::env;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Debug)]
 struct ReplicaConfig {
@@ -15,12 +15,27 @@ impl ReplicaConfig {
         }
     }
 
-    async fn ping(&self) {
-        let url = format!("{}:{}", self.host, self.port);
-
-        let mut stream = tokio::net::TcpStream::connect(url).await.unwrap();
-
+    async fn handshake(&self, stream: &mut tokio::net::TcpStream) {
         stream.write_all(b"*1\r\n$4\r\nPING\r\n").await.unwrap();
+        let _ = stream.read(&mut [0u8; 1024]).await.unwrap();
+        let listening_port = env::var("port").unwrap_or_else(|_| "6379".to_string());
+
+        stream
+            .write_all(
+                format!(
+                    "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n{listening_port}\r\n"
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        let _ = stream.read(&mut [0u8; 1024]).await.unwrap();
+
+        stream
+            .write_all(b"*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n")
+            .await
+            .unwrap();
+        let _ = stream.read(&mut [0u8; 1024]).await.unwrap();
     }
 }
 
@@ -34,6 +49,10 @@ pub async fn replica_handler() {
     }
 
     let master = ReplicaConfig::new(host.to_string(), port.to_string());
-    master.ping().await;
-    dbg!(master);
+
+    let url = format!("{}:{}", master.host, master.port);
+
+    let mut stream = tokio::net::TcpStream::connect(url).await.unwrap();
+
+    master.handshake(&mut stream).await;
 }

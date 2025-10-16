@@ -4,10 +4,11 @@ use std::env;
 /// Function to get 'dir' and 'dbfilename' parameters from CLI args and set them as env variables
 /// for later use
 pub fn set_env_vars() {
-    let (dir, dbfilename, _, isreplica) = getargs();
+    let (dir, dbfilename, port, isreplica) = getargs();
     if !isreplica.is_empty() {
         env::set_var("replicaof", isreplica);
     }
+    env::set_var("port", port);
     env::set_var("dir", dir);
     env::set_var("dbfilename", dbfilename);
 }
