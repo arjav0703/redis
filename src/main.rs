@@ -4,11 +4,13 @@ use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 pub mod cli;
 pub mod parsers;
+use std::env;
 mod types;
 use cli::set_env_vars;
 use types::{KeyWithExpiry, RespHandler, RespValue};
 mod db_handler;
 mod file_handler;
+mod replica;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -18,6 +20,12 @@ async fn main() -> Result<()> {
 
     println!("Mini‑Redis listening on {url}");
     let listener = TcpListener::bind(url).await?;
+
+    let is_isreplica = !env::var("replicaof").unwrap_or_default().is_empty();
+
+    if is_isreplica {
+        replica::replica_handler().await;
+    }
 
     let initial_db = file_handler::read_rdb_file().await?;
     println!("Initial DB state from RDB file: {initial_db:?}");
