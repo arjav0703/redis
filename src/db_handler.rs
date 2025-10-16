@@ -227,3 +227,23 @@ pub async fn handle_info(handler: &mut RespHandler) -> Result<()> {
     handler.write_value(RespValue::BulkString(info)).await?;
     Ok(())
 }
+
+pub async fn handle_replconf(items: &[RespValue], handler: &mut RespHandler) -> Result<()> {
+    if items.len() >= 3 {
+        let subcommand = items[1].as_string().unwrap_or_default();
+        if subcommand.eq_ignore_ascii_case("listening-port") {
+            let port = items[2].as_integer().unwrap_or(0);
+            println!("REPLCONF listening-port: {port}");
+        } else if subcommand.eq_ignore_ascii_case("capa") {
+            let capability = items[2].as_string().unwrap_or_default();
+            println!("REPLCONF capa: {capability}");
+        }
+    }
+
+    handler
+        .write_value(RespValue::SimpleString("OK".into()))
+        .await
+        .unwrap_or_else(|e| eprintln!("Failed to send REPLCONF response: {}", e));
+
+    Ok(())
+}

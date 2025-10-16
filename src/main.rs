@@ -86,6 +86,9 @@ async fn handle_client(
                         "INFO" if items.len() == 2 => {
                             db_handler::handle_info(&mut handler).await?;
                         }
+                        "REPLCONF" => {
+                            db_handler::handle_replconf(&items, &mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
