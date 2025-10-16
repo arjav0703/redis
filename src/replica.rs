@@ -16,10 +16,13 @@ impl ReplicaConfig {
     }
 
     async fn handshake(&self, stream: &mut tokio::net::TcpStream) {
+        // Send Ping
         stream.write_all(b"*1\r\n$4\r\nPING\r\n").await.unwrap();
         let _ = stream.read(&mut [0u8; 1024]).await.unwrap();
+
         let listening_port = env::var("port").unwrap_or_else(|_| "6379".to_string());
 
+        // Send REPLCONF listening-port <port>
         stream
             .write_all(
                 format!(
@@ -31,11 +34,20 @@ impl ReplicaConfig {
             .unwrap();
         let _ = stream.read(&mut [0u8; 1024]).await.unwrap();
 
+        // Send REPLCONF capa psync2
         stream
             .write_all(b"*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n")
             .await
             .unwrap();
         let _ = stream.read(&mut [0u8; 1024]).await.unwrap();
+
+        let _replication_id = env::var("replication_id").unwrap_or_default();
+
+        // send psync command
+        stream
+            .write_all(b"*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n")
+            .await
+            .unwrap();
     }
 }
 

@@ -1,4 +1,6 @@
 use clap::Parser;
+use rand::distr::Alphanumeric;
+use rand::Rng;
 use std::env;
 
 /// Function to get 'dir' and 'dbfilename' parameters from CLI args and set them as env variables
@@ -8,6 +10,13 @@ pub fn set_env_vars() {
     if !isreplica.is_empty() {
         env::set_var("replicaof", isreplica);
     }
+
+    let replication_id: String = (0..40)
+        .map(|_| rand::rng().sample(Alphanumeric) as char)
+        .collect();
+
+    env::set_var("replication_id", replication_id);
+
     env::set_var("port", port);
     env::set_var("dir", dir);
     env::set_var("dbfilename", dbfilename);
