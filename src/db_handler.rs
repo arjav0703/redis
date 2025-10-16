@@ -208,11 +208,19 @@ pub async fn handle_key_search(
     Ok(())
 }
 
+use rand::distr::Alphanumeric;
+use rand::Rng;
+
 pub async fn handle_info(handler: &mut RespHandler) -> Result<()> {
-    let is_isreplica = env::var("replicaof").unwrap_or_default().is_empty() == false;
+    let is_isreplica = !env::var("replicaof").unwrap_or_default().is_empty();
     // dbg!(is_isreplica);
     let role = if is_isreplica { "slave" } else { "master" };
     let info = format!("role:{role}");
+    let replication_id: String = (0..40)
+        .map(|_| rand::rng().sample(Alphanumeric) as char)
+        .collect();
+
+    let info = format!("{info}\nmaster_replid:{replication_id}\nmaster_repl_offset:0");
     handler.write_value(RespValue::BulkString(info)).await?;
     Ok(())
 }
