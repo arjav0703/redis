@@ -311,7 +311,7 @@ pub async fn handle_psync(
             .write_value(RespValue::SimpleString(response))
             .await?;
         send_empty_rdb(handler).await?;
-        
+
         // Return true to indicate this connection should become a replica connection
         Ok(true)
     } else {
@@ -331,7 +331,6 @@ async fn send_empty_rdb(handler: &mut RespHandler) -> Result<()> {
     let header = format!("${}\r\n", length_of_file);
     handler.write_bytes(header.as_bytes()).await?;
     handler.write_bytes(&empty_rdb).await?;
-    handler.write_bytes(b"\r\n").await?;  // Add the trailing \r\n
 
     Ok(())
 }
