@@ -66,6 +66,29 @@ redis-cli INFO replication
 - Load previous state from RDB file
 - Set keys with expiry
 - Works with the official redis-cli
+- Replication support (work in progress)
+
+
+### Replication Support (work in progress)
+- The server can act as a replica and sync data from a master Redis server. To start the server as a replica, use the following command:
+1. Run a master redis server:
+```bash
+cargo run # -- --port <MASTER_PORT>
+```
+2. Run the replica server:
+```bash
+cargo run -- --replicaof <MASTER_IP> <MASTER_PORT> --port <REPLICA_PORT>
+```
+
+3. Send commands to the master server using redis-cli:
+```bash
+redis-cli -p <MASTER_PORT> SET key value
+```
+
+4. Check if the replica server has synced the data:
+```bash
+redis-cli -p <REPLICA_PORT> GET key
+```
 
 --- 
 <div align="center">
