@@ -274,10 +274,23 @@ pub async fn handle_psync(
         handler
             .write_value(RespValue::SimpleString(response))
             .await?;
+        send_empty_rdb(handler).await?;
     } else {
         handler
             .write_value(RespValue::SimpleString("ERR invalid PSYNC command".into()))
             .await?;
     }
+    Ok(())
+}
+
+async fn send_empty_rdb(handler: &mut RespHandler) -> Result<()> {
+    let empty_rdb = hex::decode("524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2").unwrap();
+
+    let length_of_file = empty_rdb.len();
+
+    let header = format!("${}\r\n", length_of_file);
+    handler.write_bytes(header.as_bytes()).await?;
+    handler.write_bytes(&empty_rdb).await?;
+
     Ok(())
 }

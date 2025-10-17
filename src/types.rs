@@ -50,6 +50,11 @@ impl RespHandler {
         self.stream.write_all(v.encode().as_bytes()).await?;
         Ok(())
     }
+
+    pub async fn write_bytes(&mut self, raw_bytes: &[u8]) -> Result<()> {
+        self.stream.write_all(raw_bytes).await?;
+        Ok(())
+    }
 }
 
 /// A simple check to determine if the incoming data (expected to be a RESP datatype) is of what
