@@ -266,12 +266,19 @@ pub async fn handle_info(handler: &mut RespHandler) -> Result<()> {
 pub async fn handle_replconf(items: &[RespValue], handler: &mut RespHandler) -> Result<()> {
     if items.len() >= 3 {
         let subcommand = items[1].as_string().unwrap_or_default();
+
         if subcommand.eq_ignore_ascii_case("listening-port") {
             let port = items[2].as_integer().unwrap_or(0);
             println!("REPLCONF listening-port: {port}");
         } else if subcommand.eq_ignore_ascii_case("capa") {
             let capability = items[2].as_string().unwrap_or_default();
             println!("REPLCONF capa: {capability}");
+        } else if subcommand.eq_ignore_ascii_case("ack") {
+            let offset = items[2].as_integer().unwrap_or(0);
+            println!("REPLCONF ack: {offset}");
+            handler
+                .write_bytes(b"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n")
+                .await?;
         }
     }
 
