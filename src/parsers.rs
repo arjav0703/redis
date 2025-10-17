@@ -12,13 +12,22 @@ pub fn parse_simple(buf: &[u8]) -> Result<(RespValue, usize)> {
 /// Function used to parse a bulk string in the RESP format.
 pub fn parse_bulk(buf: &[u8]) -> Result<(RespValue, usize)> {
     let len_end = find_crlf(&buf[1..]).ok_or(anyhow!("incomplete bulk len"))?;
-    let len: usize = std::str::from_utf8(&buf[1..1 + len_end])?.parse()?;
+    let len_str = std::str::from_utf8(&buf[1..1 + len_end])?;
+    
+    // Check for null bulk string
+    if len_str == "-1" {
+        return Ok((RespValue::NullBulkString, 1 + len_end + 2));
+    }
+    
+    let len: usize = len_str.parse()?;
     let start = 1 + len_end + 2;
     let end = start + len;
     if buf.len() < end + 2 {
         return Err(anyhow!("incomplete bulk body"));
     }
-    let s = std::str::from_utf8(&buf[start..end])?.to_owned();
+    
+    // Try to parse as UTF-8, but if it fails (binary data), use lossy conversion
+    let s = String::from_utf8_lossy(&buf[start..end]).to_string();
     Ok((RespValue::BulkString(s), end + 2))
 }
 

@@ -27,6 +27,26 @@ pub async fn set_key(
     items: &[RespValue],
     handler: &mut RespHandler,
 ) -> Result<()> {
+    set_key_internal(db, items).await?;
+    handler
+        .write_value(RespValue::SimpleString("OK".into()))
+        .await?;
+    Ok(())
+}
+
+/// Silent version of set_key for replica processing (no response sent)
+pub async fn set_key_silent(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+) -> Result<()> {
+    set_key_internal(db, items).await
+}
+
+/// Internal implementation of set_key logic without response handling
+async fn set_key_internal(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+) -> Result<()> {
     let key = items[1].as_string().unwrap_or_default();
     let val = items[2].as_string().unwrap_or_default();
     let mut expiry = None;
@@ -47,9 +67,6 @@ pub async fn set_key(
     {
         let mut db = db.lock().await;
         db.insert(key.clone(), KeyWithExpiry { value: val, expiry });
-        handler
-            .write_value(RespValue::SimpleString("OK".into()))
-            .await?;
         println!("Current DB state: {db:?}");
     }
 
@@ -119,6 +136,27 @@ pub async fn del_key(
     items: &[RespValue],
     handler: &mut RespHandler,
 ) -> Result<()> {
+    let deleted_count = del_key_internal(db, items).await?;
+    handler
+        .write_value(RespValue::Integer(deleted_count))
+        .await?;
+    Ok(())
+}
+
+/// Silent version of del_key for replica processing (no response sent)
+pub async fn del_key_silent(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+) -> Result<()> {
+    del_key_internal(db, items).await?;
+    Ok(())
+}
+
+/// Internal implementation of del_key logic without response handling
+async fn del_key_internal(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+) -> Result<i64> {
     let mut db = db.lock().await;
     let mut deleted_count = 0;
     for i in 1..items.len() {
@@ -128,10 +166,7 @@ pub async fn del_key(
             println!("Deleted key: {key}");
         }
     }
-    handler
-        .write_value(RespValue::Integer(deleted_count))
-        .await?;
-    Ok(())
+    Ok(deleted_count)
 }
 
 /// Still in work, intended to handle the config command
@@ -292,9 +327,11 @@ async fn send_empty_rdb(handler: &mut RespHandler) -> Result<()> {
 
     let length_of_file = empty_rdb.len();
 
+    // Send as proper RESP bulk string: $<len>\r\n<data>\r\n
     let header = format!("${}\r\n", length_of_file);
     handler.write_bytes(header.as_bytes()).await?;
     handler.write_bytes(&empty_rdb).await?;
+    handler.write_bytes(b"\r\n").await?;  // Add the trailing \r\n
 
     Ok(())
 }

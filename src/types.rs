@@ -78,6 +78,30 @@ impl RespHandler {
         Ok(())
     }
 
+    /// Read raw bytes from the stream/buffer for RDB file handling
+    pub async fn read_raw_bytes(&mut self, count: usize) -> Result<Vec<u8>> {
+        let mut result = Vec::new();
+        
+        // First, take from existing buffer
+        let from_buf = count.min(self.buf.len());
+        result.extend_from_slice(&self.buf[..from_buf]);
+        self.buf.advance(from_buf);
+        
+        // If we need more, read from stream
+        let mut remaining = count - from_buf;
+        while remaining > 0 {
+            let mut tmp = vec![0u8; remaining.min(4096)];
+            let n = self.stream.read(&mut tmp).await?;
+            if n == 0 {
+                return Err(anyhow!("connection closed while reading raw bytes"));
+            }
+            result.extend_from_slice(&tmp[..n]);
+            remaining -= n;
+        }
+        
+        Ok(result)
+    }
+
     pub fn get_peer_addr(&self) -> Result<std::net::SocketAddr> {
         Ok(self.stream.peer_addr()?)
     }
@@ -85,6 +109,11 @@ impl RespHandler {
     /// Split the handler and extract the underlying stream
     pub fn into_stream(self) -> TcpStream {
         self.stream
+    }
+
+    /// Get the current buffer size (for debugging)
+    pub fn buffer_len(&self) -> usize {
+        self.buf.len()
     }
 }
 

@@ -23,10 +23,6 @@ async fn main() -> Result<()> {
 
     let is_isreplica = !env::var("replicaof").unwrap_or_default().is_empty();
 
-    if is_isreplica {
-        replica::replica_handler().await;
-    }
-
     let initial_db = file_handler::read_rdb_file().await?;
     println!("Initial DB state from RDB file: {initial_db:?}");
     let db = Arc::new(tokio::sync::Mutex::new(
@@ -35,6 +31,17 @@ async fn main() -> Result<()> {
     {
         let mut db_lock = db.lock().await;
         *db_lock = initial_db;
+    }
+
+    if is_isreplica {
+        let db_clone = Arc::clone(&db);
+        tokio::spawn(async move {
+            println!("Starting replica handler...");
+            replica::replica_handler(db_clone).await;
+            println!("Replica handler terminated");
+        });
+        // Give the replica handler a moment to start
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     }
 
     let replicas = Arc::new(tokio::sync::Mutex::new(Vec::<ReplicaConnection>::new()));
