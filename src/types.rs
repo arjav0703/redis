@@ -1,10 +1,12 @@
 use crate::parsers::{parse_array, parse_bulk, parse_int, parse_simple};
 use anyhow::{anyhow, Result};
 use bytes::{Buf, BytesMut};
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
+    sync::Mutex,
 };
 
 /// Struct to store a key inside the hashmap. It allows you to set an expiry time (optional)
@@ -12,6 +14,26 @@ use tokio::{
 pub struct KeyWithExpiry {
     pub value: String,
     pub expiry: Option<Instant>,
+}
+
+/// Struct to represent a connected replica
+#[derive(Clone)]
+pub struct ReplicaConnection {
+    pub stream: Arc<Mutex<TcpStream>>,
+}
+
+impl ReplicaConnection {
+    pub fn new(stream: TcpStream) -> Self {
+        Self {
+            stream: Arc::new(Mutex::new(stream)),
+        }
+    }
+
+    pub async fn send_command(&self, command: &RespValue) -> Result<()> {
+        let mut stream = self.stream.lock().await;
+        stream.write_all(command.encode().as_bytes()).await?;
+        Ok(())
+    }
 }
 
 /// Pretty obvious
@@ -54,6 +76,15 @@ impl RespHandler {
     pub async fn write_bytes(&mut self, raw_bytes: &[u8]) -> Result<()> {
         self.stream.write_all(raw_bytes).await?;
         Ok(())
+    }
+
+    pub fn get_peer_addr(&self) -> Result<std::net::SocketAddr> {
+        Ok(self.stream.peer_addr()?)
+    }
+
+    /// Split the handler and extract the underlying stream
+    pub fn into_stream(self) -> TcpStream {
+        self.stream
     }
 }
 

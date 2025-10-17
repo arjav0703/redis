@@ -252,7 +252,8 @@ pub async fn handle_psync(
     items: &[RespValue],
     _db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     handler: &mut RespHandler,
-) -> Result<()> {
+    _replicas: &Arc<tokio::sync::Mutex<Vec<crate::types::ReplicaConnection>>>,
+) -> Result<bool> {
     if items.len() >= 2 {
         let replication_id = items[1].as_string().unwrap_or_default();
         let offset = if items.len() >= 3 {
@@ -275,12 +276,15 @@ pub async fn handle_psync(
             .write_value(RespValue::SimpleString(response))
             .await?;
         send_empty_rdb(handler).await?;
+        
+        // Return true to indicate this connection should become a replica connection
+        Ok(true)
     } else {
         handler
             .write_value(RespValue::SimpleString("ERR invalid PSYNC command".into()))
             .await?;
+        Ok(false)
     }
-    Ok(())
 }
 
 async fn send_empty_rdb(handler: &mut RespHandler) -> Result<()> {

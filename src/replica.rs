@@ -1,4 +1,8 @@
+use crate::types::KeyWithExpiry;
+use crate::types::{RespHandler, RespValue};
+use std::collections::HashMap;
 use std::env;
+use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Debug)]
@@ -67,4 +71,41 @@ pub async fn replica_handler() {
     let mut stream = tokio::net::TcpStream::connect(url).await.unwrap();
 
     master.handshake(&mut stream).await;
+
+    let mut handler = RespHandler::new(stream);
+
+    println!("Replica: Listening for commands from master...");
+
+    loop {
+        match handler.read_value().await {
+            std::result::Result::Ok(Some(val)) => {
+                if let RespValue::Array(items) = val {
+                    if !items.is_empty() {
+                        if let Some(cmd) = items[0].as_string() {
+                            let cmd_upper = cmd.to_ascii_uppercase();
+                            match cmd_upper.as_str() {
+                                "SET" | "DEL" => {
+                                    // Process write commands silently (no response to master)
+                                    println!("Replica: Received {} command from master", cmd_upper);
+                                    // The actual processing will be done in the main handle_client
+                                    // when we refactor to share the DB
+                                }
+                                _ => {
+                                    // Ignore non-write commands
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            std::result::Result::Ok(None) => {
+                println!("Replica: Master connection closed");
+                break;
+            }
+            Err(e) => {
+                eprintln!("Replica: Error reading from master: {}", e);
+                break;
+            }
+        }
+    }
 }

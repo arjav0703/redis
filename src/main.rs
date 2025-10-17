@@ -7,7 +7,7 @@ pub mod parsers;
 use std::env;
 mod types;
 use cli::set_env_vars;
-use types::{KeyWithExpiry, RespHandler, RespValue};
+use types::{KeyWithExpiry, ReplicaConnection, RespHandler, RespValue};
 mod db_handler;
 mod file_handler;
 mod replica;
@@ -36,13 +36,17 @@ async fn main() -> Result<()> {
         let mut db_lock = db.lock().await;
         *db_lock = initial_db;
     }
+
+    let replicas = Arc::new(tokio::sync::Mutex::new(Vec::<ReplicaConnection>::new()));
+
     loop {
         let (stream, _) = listener.accept().await?;
 
         let db = db.clone();
+        let replicas = replicas.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = handle_client(stream, db).await {
+            if let Err(e) = handle_client(stream, db, replicas).await {
                 eprintln!("connection error: {e:#}");
             }
         });
@@ -53,6 +57,7 @@ async fn main() -> Result<()> {
 async fn handle_client(
     stream: TcpStream,
     db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    replicas: Arc<tokio::sync::Mutex<Vec<ReplicaConnection>>>,
 ) -> Result<()> {
     let mut handler = RespHandler::new(stream);
     // let mut db: HashMap<String, String> = HashMap::new();
@@ -68,13 +73,17 @@ async fn handle_client(
                             handler.write_value(items[1].clone()).await?;
                         }
                         "SET" if items.len() >= 3 => {
-                            db_handler::set_key(&db, &items, &mut handler).await?
+                            db_handler::set_key(&db, &items, &mut handler).await?;
+                            propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
+                                .await?;
                         }
                         "GET" if items.len() == 2 => {
                             db_handler::get_key(&db, &items, &mut handler).await?
                         }
                         "DEL" if items.len() >= 2 => {
-                            db_handler::del_key(&db, &items, &mut handler).await?
+                            db_handler::del_key(&db, &items, &mut handler).await?;
+                            propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
+                                .await?;
                         }
                         "CONFIG" => {
                             db_handler::handle_config(&items, &mut handler).await?;
@@ -87,10 +96,29 @@ async fn handle_client(
                             db_handler::handle_info(&mut handler).await?;
                         }
                         "REPLCONF" => {
+                            let slave_ip = handler.get_peer_addr().unwrap();
+                            dbg!(&slave_ip);
+                            env::set_var("slave_ip", slave_ip.to_string());
                             db_handler::handle_replconf(&items, &mut handler).await?;
                         }
                         "PSYNC" if items.len() >= 2 => {
-                            db_handler::handle_psync(&items, &db, &mut handler).await?;
+                            let should_become_replica =
+                                db_handler::handle_psync(&items, &db, &mut handler, &replicas)
+                                    .await?;
+                            if should_become_replica {
+                                // Convert this connection to a replica connection
+                                let stream = handler.into_stream();
+                                let replica_conn = ReplicaConnection::new(stream);
+                                let mut replicas_guard = replicas.lock().await;
+                                replicas_guard.push(replica_conn);
+                                println!(
+                                    "Added new replica connection. Total replicas: {}",
+                                    replicas_guard.len()
+                                );
+                                // Exit the loop - this connection is now a replica connection
+                                // and should not process further client commands
+                                return Ok(());
+                            }
                         }
                         _ => {
                             handler
@@ -107,5 +135,25 @@ async fn handle_client(
             }
         }
     }
+    Ok(())
+}
+
+async fn propogate_to_replicas(
+    command: &RespValue,
+    replicas: &Arc<tokio::sync::Mutex<Vec<ReplicaConnection>>>,
+) -> Result<()> {
+    let replica_of = env::var("replicaof").unwrap_or_default();
+    if !replica_of.is_empty() {
+        return Ok(());
+    }
+
+    let replicas_guard = replicas.lock().await;
+
+    for replica in replicas_guard.iter() {
+        if let Err(e) = replica.send_command(command).await {
+            eprintln!("Failed to propagate command to replica: {}", e);
+        }
+    }
+
     Ok(())
 }
