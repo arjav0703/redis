@@ -341,3 +341,71 @@ async fn send_empty_rdb(handler: &mut RespHandler) -> Result<()> {
 
     Ok(())
 }
+
+use crate::ReplicaConnection;
+pub async fn handle_wait(
+    replicas: &Arc<tokio::sync::Mutex<Vec<ReplicaConnection>>>,
+    _num_replicas: i64, // Not used - we return the actual count, not the requested count
+    timeout_ms: u64,
+) -> Result<i64> {
+    let replicas_guard = replicas.lock().await;
+
+    // If no replicas connected, return 0
+    if replicas_guard.is_empty() {
+        return Ok(0);
+    }
+
+    // Check if any replica has pending writes (offset > 0)
+    let mut has_pending_writes = false;
+    for replica in replicas_guard.iter() {
+        if replica.get_offset().await > 0 {
+            has_pending_writes = true;
+            break;
+        }
+    }
+
+    // If no pending writes, return the number of connected replicas
+    if !has_pending_writes {
+        return Ok(replicas_guard.len() as i64);
+    }
+
+    // Get the current offset for each replica (before sending GETACK)
+    let mut expected_offsets = Vec::new();
+    for replica in replicas_guard.iter() {
+        expected_offsets.push(replica.get_offset().await);
+    }
+
+    // Send GETACK to all replicas and collect responses
+    let mut ack_futures = Vec::new();
+    for (i, replica) in replicas_guard.iter().enumerate() {
+        let replica_clone = replica.clone();
+        let expected_offset = expected_offsets[i];
+        ack_futures.push(tokio::spawn(async move {
+            match replica_clone.send_getack_and_wait(timeout_ms).await {
+                std::result::Result::Ok(result) => match result {
+                    Some(offset) => {
+                        // Replica acknowledged if its offset >= expected offset
+                        offset >= expected_offset
+                    }
+                    None => false,
+                },
+                Err(_) => false,
+            }
+        }));
+    }
+
+    // Wait for all responses (or timeout)
+    let mut ack_count = 0i64;
+    for future in ack_futures {
+        match future.await {
+            std::result::Result::Ok(acknowledged) => {
+                if acknowledged {
+                    ack_count += 1;
+                }
+            }
+            Err(_) => {}
+        }
+    }
+
+    Ok(ack_count)
+}

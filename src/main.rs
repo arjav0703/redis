@@ -132,13 +132,14 @@ async fn handle_client(
                             }
                         }
                         "WAIT" if items.len() == 3 => {
-                            let connected_replicas: i64 = {
-                                let replicas_guard = replicas.lock().await;
-                                replicas_guard.len().try_into().unwrap_or(0)
-                            };
-                            handler
-                                .write_value(RespValue::Integer(connected_replicas))
-                                .await?;
+                            let num_replicas = items[1].as_integer().unwrap_or(0);
+                            let timeout_ms = items[2].as_integer().unwrap_or(0) as u64;
+
+                            use db_handler::handle_wait;
+                            let ack_count =
+                                handle_wait(&replicas, num_replicas, timeout_ms).await?;
+
+                            handler.write_value(RespValue::Integer(ack_count)).await?;
                         }
                         _ => {
                             handler
