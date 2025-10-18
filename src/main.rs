@@ -118,9 +118,13 @@ async fn handle_client(
                                 let replica_conn = ReplicaConnection::new(stream);
                                 let mut replicas_guard = replicas.lock().await;
                                 replicas_guard.push(replica_conn);
+
+                                let connected_replicas = replicas_guard.len();
+                                env::set_var("connected_replicas", connected_replicas.to_string());
+
                                 println!(
                                     "Added new replica connection. Total replicas: {}",
-                                    replicas_guard.len()
+                                    connected_replicas
                                 );
                                 // Exit the loop - this connection is now a replica connection
                                 // and should not process further client commands
@@ -128,7 +132,13 @@ async fn handle_client(
                             }
                         }
                         "WAIT" if items.len() == 3 => {
-                            handler.write_value(RespValue::Integer(0)).await?;
+                            let connected_replicas: i64 = {
+                                let replicas_guard = replicas.lock().await;
+                                replicas_guard.len().try_into().unwrap_or(0)
+                            };
+                            handler
+                                .write_value(RespValue::Integer(connected_replicas))
+                                .await?;
                         }
                         _ => {
                             handler
