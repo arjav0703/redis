@@ -67,6 +67,23 @@ impl RespHandler {
         }
     }
 
+    /// Like `read_value`, but also returns the number of bytes consumed from the
+    /// tracking the exact byte-length of commands (e.g. for replication ACKs).
+    pub async fn read_value_with_size(&mut self) -> Result<Option<(RespValue, usize)>> {
+        loop {
+            if let Ok((v, used)) = parse_msg(&self.buf) {
+                self.buf.advance(used);
+                return Ok(Some((v, used)));
+            }
+            let mut tmp = [0u8; 1024];
+            let n = self.stream.read(&mut tmp).await?;
+            if n == 0 {
+                return Ok(None); // client closed
+            }
+            self.buf.extend_from_slice(&tmp[..n]);
+        }
+    }
+
     /// Writes stuff to the stream. it takes a respvalue enum (see below) as argument.
     pub async fn write_value(&mut self, v: RespValue) -> Result<()> {
         self.stream.write_all(v.encode().as_bytes()).await?;
@@ -81,12 +98,12 @@ impl RespHandler {
     /// Read raw bytes from the stream/buffer for RDB file handling
     pub async fn read_raw_bytes(&mut self, count: usize) -> Result<Vec<u8>> {
         let mut result = Vec::new();
-        
+
         // First, take from existing buffer
         let from_buf = count.min(self.buf.len());
         result.extend_from_slice(&self.buf[..from_buf]);
         self.buf.advance(from_buf);
-        
+
         // If we need more, read from stream
         let mut remaining = count - from_buf;
         while remaining > 0 {
@@ -98,7 +115,7 @@ impl RespHandler {
             result.extend_from_slice(&tmp[..n]);
             remaining -= n;
         }
-        
+
         Ok(result)
     }
 

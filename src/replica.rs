@@ -178,64 +178,93 @@ pub async fn replica_handler(db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithE
     println!("Replica: Listening for commands from master...");
 
     let mut command_count = 0;
+    // offset in bytes of commands processed so far
+    let mut offset: i64 = 0;
     loop {
-        match handler.read_value().await {
-            std::result::Result::Ok(Some(val)) => {
+        match handler.read_value_with_size().await {
+            std::result::Result::Ok(Some((val, used_bytes))) => {
                 command_count += 1;
                 println!("Replica: Received command #{}: {:?}", command_count, val);
-                if let RespValue::Array(items) = val {
+                // We must respond to GETACK with the offset that does NOT include the
+                // GETACK command itself. So capture the current offset now.
+                if let RespValue::Array(items) = &val {
                     if !items.is_empty() {
                         if let Some(cmd) = items[0].as_string() {
                             let cmd_upper = cmd.to_ascii_uppercase();
                             match cmd_upper.as_str() {
                                 "SET" if items.len() >= 3 => {
                                     println!("Replica: Processing SET command");
-                                    if let Err(e) = db_handler::set_key_silent(&db, &items).await {
+                                    if let Err(e) = db_handler::set_key_silent(&db, items).await {
                                         eprintln!("Replica: Error processing SET: {}", e);
                                     } else {
                                         println!("Replica: Successfully processed SET");
                                     }
+                                    // After processing, add the full RESP array byte length
+                                    offset += used_bytes as i64;
                                 }
                                 "DEL" if items.len() >= 2 => {
                                     println!("Replica: Processing DEL command");
-                                    if let Err(e) = db_handler::del_key_silent(&db, &items).await {
+                                    if let Err(e) = db_handler::del_key_silent(&db, items).await {
                                         eprintln!("Replica: Error processing DEL: {}", e);
                                     } else {
                                         println!("Replica: Successfully processed DEL");
                                     }
+                                    offset += used_bytes as i64;
                                 }
                                 "REPLCONF" => {
                                     if items.len() >= 2 {
                                         let sub = items[1].as_string().unwrap_or_default();
                                         let sub_up = sub.to_ascii_uppercase();
                                         if sub_up == "GETACK" {
-                                            // Send raw RESP array: REPLCONF ACK 0
-                                            let resp =
-                                                b"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n";
-                                            if let Err(e) = handler.write_bytes(resp).await {
+                                            // Reply with RESP array: ["REPLCONF","ACK","<offset>"]
+                                            let ack_str = offset.to_string();
+                                            let resp_value = RespValue::Array(vec![
+                                                RespValue::BulkString("REPLCONF".to_string()),
+                                                RespValue::BulkString("ACK".to_string()),
+                                                RespValue::BulkString(ack_str.clone()),
+                                            ]);
+                                            if let Err(e) = handler.write_value(resp_value).await {
                                                 eprintln!(
                                                     "Replica: Failed to send REPLCONF ACK: {}",
                                                     e
                                                 );
                                             } else {
-                                                println!("Replica: Sent REPLCONF ACK 0");
+                                                println!("Replica: Sent REPLCONF ACK {}", ack_str);
                                             }
+                                            // Important: only after replying do we add the GETACK command's
+                                            // own byte length to the offset (rule: exclude current GETACK).
+                                            offset += used_bytes as i64;
                                         } else {
                                             println!(
                                                 "Replica: REPLCONF subcommand ignored: {}",
                                                 sub
                                             );
+                                            // Treat other REPLCONF commands as processed bytes
+                                            offset += used_bytes as i64;
                                         }
+                                    } else {
+                                        // Malformed REPLCONF, still count bytes
+                                        offset += used_bytes as i64;
                                     }
                                 }
                                 _ => {
                                     println!("Replica: Ignored command: {}", cmd_upper);
+                                    // Even ignored commands should contribute to the offset
+                                    offset += used_bytes as i64;
                                 }
                             }
+                        } else {
+                            // Non-string command name; still count bytes
+                            offset += used_bytes as i64;
                         }
+                    } else {
+                        // Empty array: count its bytes
+                        offset += used_bytes as i64;
                     }
                 } else {
                     println!("Replica: Received non-array value: {:?}", val);
+                    // Count the bytes of the non-array value
+                    offset += used_bytes as i64;
                 }
             }
             std::result::Result::Ok(None) => {
