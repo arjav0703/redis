@@ -28,7 +28,10 @@ impl ReplicaConfig {
             )]))
             .await
             .expect("Failed to send PING");
-        let _ = handler.read_value().await.expect("Failed to read PING response");
+        let _ = handler
+            .read_value()
+            .await
+            .expect("Failed to read PING response");
         println!("Replica: PING OK");
 
         let listening_port = env::var("port").unwrap_or_else(|_| "6379".to_string());
@@ -43,7 +46,10 @@ impl ReplicaConfig {
             ]))
             .await
             .expect("Failed to send REPLCONF listening-port");
-        let _ = handler.read_value().await.expect("Failed to read REPLCONF listening-port response");
+        let _ = handler
+            .read_value()
+            .await
+            .expect("Failed to read REPLCONF listening-port response");
         println!("Replica: REPLCONF listening-port OK");
 
         // Send REPLCONF capa psync2
@@ -56,7 +62,10 @@ impl ReplicaConfig {
             ]))
             .await
             .expect("Failed to send REPLCONF capa");
-        let _ = handler.read_value().await.expect("Failed to read REPLCONF capa response");
+        let _ = handler
+            .read_value()
+            .await
+            .expect("Failed to read REPLCONF capa response");
         println!("Replica: REPLCONF capa OK");
 
         // send psync command
@@ -73,32 +82,37 @@ impl ReplicaConfig {
         println!("Replica: Sent PSYNC, waiting for response...");
 
         // Read FULLRESYNC response
-        let fullresync = handler.read_value().await.expect("Failed to read FULLRESYNC response");
+        let fullresync = handler
+            .read_value()
+            .await
+            .expect("Failed to read FULLRESYNC response");
         println!("Replica: Received FULLRESYNC response: {:?}", fullresync);
 
         // Read and discard the empty RDB file
         // NOTE: The test master sends RDB as $<len>\r\n<data> WITHOUT trailing \r\n
         // This is non-standard RESP, so we must handle it manually
         println!("Replica: Reading empty RDB file header...");
-        
+
         // Manually parse the bulk string header: $<len>\r\n
         // We'll read until we get the full header, then read exactly <len> bytes
         let mut header_buf = Vec::new();
         let mut found_header = false;
         let mut rdb_len = 0usize;
-        
+
         // Read bytes until we find $<number>\r\n
         while !found_header {
             let byte_result = handler.read_raw_bytes(1).await;
             match byte_result {
                 Ok(bytes) if !bytes.is_empty() => {
                     header_buf.push(bytes[0]);
-                    
+
                     // Check if we have a complete header
-                    if header_buf.len() >= 4 && header_buf[header_buf.len()-2..] == [b'\r', b'\n'] {
+                    if header_buf.len() >= 4 && header_buf[header_buf.len() - 2..] == [b'\r', b'\n']
+                    {
                         // Parse the header: $<len>\r\n
                         if header_buf[0] == b'$' {
-                            let len_str = String::from_utf8_lossy(&header_buf[1..header_buf.len()-2]);
+                            let len_str =
+                                String::from_utf8_lossy(&header_buf[1..header_buf.len() - 2]);
                             if let Ok(len) = len_str.parse::<usize>() {
                                 rdb_len = len;
                                 found_header = true;
@@ -110,10 +124,12 @@ impl ReplicaConfig {
                 _ => break,
             }
         }
-        
+
         if found_header {
             // Now read exactly rdb_len bytes
-            let _rdb_data = handler.read_raw_bytes(rdb_len).await
+            let _rdb_data = handler
+                .read_raw_bytes(rdb_len)
+                .await
                 .expect("Failed to read RDB data");
             println!("Replica: Read {}-byte RDB file", rdb_len);
         } else {
@@ -121,7 +137,7 @@ impl ReplicaConfig {
         }
 
         println!("Replica: Handshake complete, ready to receive commands");
-        
+
         // Give a small moment for any pending commands to arrive in the buffer
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
     }
@@ -186,6 +202,30 @@ pub async fn replica_handler(db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithE
                                         eprintln!("Replica: Error processing DEL: {}", e);
                                     } else {
                                         println!("Replica: Successfully processed DEL");
+                                    }
+                                }
+                                "REPLCONF" => {
+                                    if items.len() >= 2 {
+                                        let sub = items[1].as_string().unwrap_or_default();
+                                        let sub_up = sub.to_ascii_uppercase();
+                                        if sub_up == "GETACK" {
+                                            // Send raw RESP array: REPLCONF ACK 0
+                                            let resp =
+                                                b"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n";
+                                            if let Err(e) = handler.write_bytes(resp).await {
+                                                eprintln!(
+                                                    "Replica: Failed to send REPLCONF ACK: {}",
+                                                    e
+                                                );
+                                            } else {
+                                                println!("Replica: Sent REPLCONF ACK 0");
+                                            }
+                                        } else {
+                                            println!(
+                                                "Replica: REPLCONF subcommand ignored: {}",
+                                                sub
+                                            );
+                                        }
                                     }
                                 }
                                 _ => {
