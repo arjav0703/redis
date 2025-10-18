@@ -27,13 +27,67 @@ impl Stream {
         }
     }
 
-    pub fn add_entry(&mut self, id: String, fields: Vec<(String, String)>) {
+    pub async fn add_entry(
+        &mut self,
+        id: String,
+        fields: Vec<(String, String)>,
+        handler: &mut RespHandler,
+    ) -> bool {
+        if let Err(e) = self.validate_id(&id) {
+            let _ = handler
+                .write_value(RespValue::SimpleError(format!("{e}")))
+                .await;
+            return false;
+        }
         self.entries.push(StreamEntry { id, fields });
+        true
     }
 
     #[allow(dead_code)]
     pub fn get_entries(&self) -> &[StreamEntry] {
         &self.entries
+    }
+
+    fn validate_id(&self, id: &str) -> Result<(), anyhow::Error> {
+        let id_parts: Vec<&str> = id.split('-').collect();
+
+        let id_ms: u64 = id_parts[0]
+            .parse()
+            .map_err(|_| anyhow!("Invalid ID format"))?;
+        let id_seq: u64 = id_parts[1]
+            .parse()
+            .map_err(|_| anyhow!("Invalid ID format"))?;
+
+        // Check if ID is 0-0
+        if id_ms == 0 && id_seq == 0 {
+            return Err(anyhow!(
+                "ERR The ID specified in XADD must be greater than 0-0"
+            ));
+        }
+
+        let largest_id = self.get_largest_id().unwrap_or("0-0");
+        dbg!(&largest_id);
+        let largest_parts: Vec<&str> = largest_id.split('-').collect();
+        let largest_ms: u64 = largest_parts[0].parse().unwrap_or(0);
+        let largest_seq: u64 = largest_parts[1].parse().unwrap_or(0);
+
+        if id_ms < largest_ms {
+            return Err(anyhow!(
+                "ERR The ID specified in XADD is equal or smaller than the target stream top item"
+            ));
+        }
+
+        if id_ms == largest_ms && id_seq <= largest_seq {
+            return Err(anyhow!(
+                "ERR The ID specified in XADD is equal or smaller than the target stream top item"
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn get_largest_id(&self) -> Option<&str> {
+        self.entries.last().map(|entry| entry.id.as_str())
     }
 }
 
@@ -267,6 +321,7 @@ pub fn parse_msg(buf: &[u8]) -> Result<(RespValue, usize)> {
 #[derive(Debug, Clone)]
 pub enum RespValue {
     SimpleString(String),
+    SimpleError(String),
     BulkString(String),
     NullBulkString,
     Integer(i64),
@@ -277,6 +332,7 @@ impl RespValue {
     fn encode(&self) -> String {
         match self {
             RespValue::SimpleString(s) => format!("+{s}\r\n"),
+            RespValue::SimpleError(s) => format!("-{s}\r\n"),
             RespValue::BulkString(s) => format!("${}\r\n{s}\r\n", s.len()),
             RespValue::NullBulkString => {
                 println!("Encoding NullBulkString as $-1\\r\\n");
