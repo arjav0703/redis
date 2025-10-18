@@ -409,3 +409,24 @@ pub async fn handle_wait(
 
     Ok(ack_count)
 }
+
+pub async fn handle_type(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    let key = items[1].as_string().unwrap_or_default();
+    let db = db.lock().await;
+
+    if let Some(_entry) = db.get(&key) {
+        handler
+            .write_value(RespValue::BulkString("string".into()))
+            .await?;
+    } else {
+        handler
+            .write_value(RespValue::BulkString("none".into()))
+            .await?;
+    }
+
+    Ok(())
+}

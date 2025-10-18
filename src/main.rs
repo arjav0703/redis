@@ -141,6 +141,9 @@ async fn handle_client(
 
                             handler.write_value(RespValue::Integer(ack_count)).await?;
                         }
+                        "TYPE" if items.len() == 2 => {
+                            db_handler::handle_type(&db, &items, &mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
