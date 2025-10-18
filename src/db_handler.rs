@@ -66,7 +66,13 @@ async fn set_key_internal(
 
     {
         let mut db = db.lock().await;
-        db.insert(key.clone(), KeyWithExpiry { value: val, expiry });
+        db.insert(
+            key.clone(),
+            KeyWithExpiry {
+                value: crate::types::ValueType::String(val),
+                expiry,
+            },
+        );
         println!("Current DB state: {db:?}");
     }
 
@@ -117,13 +123,26 @@ pub async fn get_key(
                 db.remove(&key);
                 handler.write_value(RespValue::NullBulkString).await?;
                 println!("Key expired: {key}");
+                return Ok(());
             }
         }
 
-        handler
-            .write_value(RespValue::BulkString(entry.value.clone()))
-            .await?;
-        println!("Value found: {}", entry.value);
+        match &entry.value {
+            crate::types::ValueType::String(s) => {
+                handler
+                    .write_value(RespValue::BulkString(s.clone()))
+                    .await?;
+                println!("Value found: {}", s);
+            }
+            crate::types::ValueType::Stream(_) => {
+                // GET on a stream should return an error or null
+                handler
+                    .write_value(RespValue::SimpleString(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                    ))
+                    .await?;
+            }
+        }
     } else {
         handler.write_value(RespValue::NullBulkString).await?;
     }
@@ -418,14 +437,77 @@ pub async fn handle_type(
     let key = items[1].as_string().unwrap_or_default();
     let db = db.lock().await;
 
-    if let Some(_entry) = db.get(&key) {
-        handler
-            .write_value(RespValue::BulkString("string".into()))
-            .await?;
+    if let Some(entry) = db.get(&key) {
+        match &entry.value {
+            crate::types::ValueType::String(_) => {
+                handler
+                    .write_value(RespValue::SimpleString("string".into()))
+                    .await?;
+            }
+            crate::types::ValueType::Stream(_) => {
+                handler
+                    .write_value(RespValue::SimpleString("stream".into()))
+                    .await?;
+            }
+        }
     } else {
         handler
-            .write_value(RespValue::BulkString("none".into()))
+            .write_value(RespValue::SimpleString("none".into()))
             .await?;
+    }
+
+    Ok(())
+}
+
+pub async fn handle_xadd(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    // XADD stream_key entry_id field1 value1 [field2 value2 ...]
+    // Minimum: XADD key id field value = 5 items
+    if items.len() < 5 || (items.len() - 3) % 2 != 0 {
+        handler
+            .write_value(RespValue::SimpleString(
+                "ERR wrong number of arguments for 'xadd' command".into(),
+            ))
+            .await?;
+        return Ok(());
+    }
+
+    let key = items[1].as_string().unwrap_or_default();
+    let entry_id = items[2].as_string().unwrap_or_default();
+
+    // Parse field-value pairs
+    let mut fields = Vec::new();
+    let mut i = 3;
+    while i < items.len() - 1 {
+        let field = items[i].as_string().unwrap_or_default();
+        let value = items[i + 1].as_string().unwrap_or_default();
+        fields.push((field, value));
+        i += 2;
+    }
+
+    // get (or create) stream
+    let mut db = db.lock().await;
+    let entry = db.entry(key.clone()).or_insert_with(|| KeyWithExpiry {
+        value: crate::types::ValueType::Stream(crate::types::Stream::new()),
+        expiry: None,
+    });
+
+    // add the entry
+    match &mut entry.value {
+        crate::types::ValueType::Stream(stream) => {
+            stream.add_entry(entry_id.clone(), fields);
+            handler.write_value(RespValue::BulkString(entry_id)).await?;
+        }
+        crate::types::ValueType::String(_) => {
+            handler
+                .write_value(RespValue::SimpleString(
+                    "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                ))
+                .await?;
+        }
     }
 
     Ok(())

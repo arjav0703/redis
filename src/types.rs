@@ -9,10 +9,57 @@ use tokio::{
     sync::Mutex,
 };
 
+#[derive(Debug, Clone)]
+pub struct StreamEntry {
+    pub id: String,
+    pub fields: Vec<(String, String)>, // key-value pairs
+}
+
+#[derive(Debug, Clone)]
+pub struct Stream {
+    pub entries: Vec<StreamEntry>,
+}
+
+impl Stream {
+    pub fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+        }
+    }
+
+    pub fn add_entry(&mut self, id: String, fields: Vec<(String, String)>) {
+        self.entries.push(StreamEntry { id, fields });
+    }
+
+    #[allow(dead_code)]
+    pub fn get_entries(&self) -> &[StreamEntry] {
+        &self.entries
+    }
+}
+
+impl StreamEntry {
+    #[allow(dead_code)]
+    pub fn get_id(&self) -> &str {
+        &self.id
+    }
+
+    #[allow(dead_code)]
+    pub fn get_fields(&self) -> &[(String, String)] {
+        &self.fields
+    }
+}
+
+/// Enum to represent different value types in Redis
+#[derive(Debug, Clone)]
+pub enum ValueType {
+    String(String),
+    Stream(Stream),
+}
+
 /// Struct to store a key inside the hashmap. It allows you to set an expiry time (optional)
 #[derive(Debug, Clone)]
 pub struct KeyWithExpiry {
-    pub value: String,
+    pub value: ValueType,
     pub expiry: Option<Instant>,
 }
 

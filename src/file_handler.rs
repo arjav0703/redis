@@ -86,7 +86,7 @@ fn parse_rdb(contents: &[u8]) -> Result<HashMap<String, KeyWithExpiry>> {
                     db.insert(
                         key,
                         KeyWithExpiry {
-                            value,
+                            value: crate::types::ValueType::String(value),
                             expiry: Some(Instant::now() + duration_until_expiry),
                         },
                     );
@@ -118,7 +118,7 @@ fn parse_rdb(contents: &[u8]) -> Result<HashMap<String, KeyWithExpiry>> {
                     db.insert(
                         key,
                         KeyWithExpiry {
-                            value,
+                            value: crate::types::ValueType::String(value),
                             expiry: Some(Instant::now() + duration_until_expiry),
                         },
                     );
@@ -139,7 +139,7 @@ fn parse_rdb(contents: &[u8]) -> Result<HashMap<String, KeyWithExpiry>> {
                 db.insert(
                     key,
                     KeyWithExpiry {
-                        value,
+                        value: crate::types::ValueType::String(value),
                         expiry: None,
                     },
                 );
