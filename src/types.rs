@@ -33,6 +33,16 @@ impl Stream {
         fields: Vec<(String, String)>,
         handler: &mut RespHandler,
     ) -> (bool, String) {
+        if id == "*" {
+            let ms = chrono::Utc::now().timestamp_millis();
+            let generated_id = format!("{ms}-0");
+            self.entries.push(StreamEntry {
+                id: generated_id.clone(),
+                fields,
+            });
+            return (true, generated_id);
+        }
+
         let id = self.auto_generate_id(&id);
 
         if let Err(e) = self.validate_id(&id) {
