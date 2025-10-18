@@ -127,6 +127,9 @@ async fn handle_client(
                                 return Ok(());
                             }
                         }
+                        "WAIT" if items.len() == 3 => {
+                            handler.write_value(RespValue::Integer(0)).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
