@@ -9,7 +9,8 @@ This is a simple Redis server written in Rust 🦀.
 - `GET`
 - `KEYS`
 - `CONFIG GET`
-- `INFO` (work in progress)
+- `INFO`
+- `WAIT`
 
 ### CLI args for the server:
 - `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
@@ -58,8 +59,11 @@ redis-cli KEYS *
 # get keys that start with 'f'
 redis-cli KEYS f
 
-# Using the INFO command (work in progress)
+# Using the INFO command 
 redis-cli INFO replication
+
+# Using the WAIT command
+redis-cli WAIT 1 1000 # waits for 1 replica to acknowledge that it is synced with the master within 1000 ms
 ```
 ### Features
 - In-memory key-value store
