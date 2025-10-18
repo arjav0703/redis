@@ -498,7 +498,7 @@ pub async fn handle_xadd(
     // add the entry
     match &mut entry.value {
         crate::types::ValueType::Stream(stream) => {
-            let success = stream.add_entry(entry_id.clone(), fields, handler).await;
+            let (success, entry_id) = stream.add_entry(entry_id.clone(), fields, handler).await;
             if success {
                 handler.write_value(RespValue::BulkString(entry_id)).await?;
             }

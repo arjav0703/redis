@@ -32,15 +32,49 @@ impl Stream {
         id: String,
         fields: Vec<(String, String)>,
         handler: &mut RespHandler,
-    ) -> bool {
+    ) -> (bool, String) {
+        let id = self.auto_generate_id(&id);
+
         if let Err(e) = self.validate_id(&id) {
             let _ = handler
                 .write_value(RespValue::SimpleError(format!("{e}")))
                 .await;
-            return false;
+            return (false, String::new());
         }
-        self.entries.push(StreamEntry { id, fields });
-        true
+        self.entries.push(StreamEntry {
+            id: id.clone(),
+            fields,
+        });
+        (true, id)
+    }
+
+    fn auto_generate_id(&self, id: &str) -> String {
+        let id_parts: Vec<&str> = id.split('-').collect();
+        let seq = id_parts[1];
+
+        let largest_id = self.get_largest_id().unwrap_or("0-0");
+        let largest_parts: Vec<&str> = largest_id.split('-').collect();
+        let largest_ms = largest_parts[0];
+        let largest_seq = largest_parts[1];
+
+        if seq == "*" {
+            // If the millisecond part is the same as the largest ID, increment the sequence
+            if id_parts[0] == largest_ms {
+                if let Ok(largest_seq_num) = largest_seq.parse::<u64>() {
+                    let id = format!("{}-{}", id_parts[0], largest_seq_num + 1);
+                    dbg!(&id);
+                    return id;
+                }
+            } else {
+                // If the millisecond part is different, start sequence at 0
+                let id = format!("{}-0", id_parts[0]);
+                dbg!(&id);
+                return id;
+            }
+        }
+
+        // If no auto-generation is needed, return the original ID
+        id.to_string()
     }
 
     #[allow(dead_code)]
