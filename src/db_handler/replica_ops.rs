@@ -1,4 +1,7 @@
-use crate::types::{KeyWithExpiry, RespHandler, RespValue};
+use crate::types::{
+    resp::{RespHandler, RespValue},
+    KeyWithExpiry,
+};
 use anyhow::{Ok, Result};
 use rand::distr::Alphanumeric;
 use rand::Rng;
@@ -54,7 +57,7 @@ pub async fn handle_psync(
     items: &[RespValue],
     _db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     handler: &mut RespHandler,
-    _replicas: &Arc<tokio::sync::Mutex<Vec<crate::types::ReplicaConnection>>>,
+    _replicas: &Arc<tokio::sync::Mutex<Vec<ReplicaConnection>>>,
 ) -> Result<bool> {
     if items.len() >= 2 {
         let replication_id = items[1].as_string().unwrap_or_default();

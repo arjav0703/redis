@@ -1,4 +1,7 @@
-use crate::types::{KeyWithExpiry, RespHandler, RespValue};
+use crate::types::{
+    resp::{RespHandler, RespValue},
+    KeyWithExpiry,
+};
 use anyhow::{Ok, Result};
 use std::collections::HashMap;
 use std::sync::Arc;

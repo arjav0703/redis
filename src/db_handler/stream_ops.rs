@@ -1,4 +1,7 @@
-use crate::types::{KeyWithExpiry, RespHandler, RespValue};
+use crate::types::{
+    resp::{RespHandler, RespValue},
+    KeyWithExpiry,
+};
 use anyhow::{Ok, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -35,7 +38,7 @@ pub async fn handle_xadd(
     // get (or create) stream
     let mut db = db.lock().await;
     let entry = db.entry(key.clone()).or_insert_with(|| KeyWithExpiry {
-        value: crate::types::ValueType::Stream(crate::types::Stream::new()),
+        value: crate::types::ValueType::Stream(crate::types::streams::Stream::new()),
         expiry: None,
     });
 

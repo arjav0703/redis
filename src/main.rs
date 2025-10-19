@@ -7,11 +7,15 @@ pub mod parsers;
 use std::env;
 mod types;
 use cli::set_env_vars;
-use types::{KeyWithExpiry, ReplicaConnection, RespHandler, RespValue};
+use types::{
+    replica::ReplicaConnection,
+    resp::{RespHandler, RespValue},
+    KeyWithExpiry,
+};
+
 mod db_handler;
 mod file_handler;
 mod replica;
-use db_handler::replica_ops;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -140,7 +144,7 @@ async fn handle_client(
                             let num_replicas = items[1].as_integer().unwrap_or(0);
                             let timeout_ms = items[2].as_integer().unwrap_or(0) as u64;
 
-                            use db_handler::handle_wait;
+                            use db_handler::replica_ops::handle_wait;
                             let ack_count =
                                 handle_wait(&replicas, num_replicas, timeout_ms).await?;
 
