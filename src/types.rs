@@ -92,6 +92,18 @@ impl Stream {
         &self.entries
     }
 
+    pub fn get_entries_after(&self, id: &str) -> Vec<&StreamEntry> {
+        let mut result = Vec::new();
+
+        for entry in &self.entries {
+            if *entry.id > *id {
+                result.push(entry);
+            }
+        }
+
+        result
+    }
+
     pub fn get_range(&self, start: &str, end: &str) -> Vec<&StreamEntry> {
         let mut result = Vec::new();
 

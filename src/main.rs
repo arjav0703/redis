@@ -150,6 +150,9 @@ async fn handle_client(
                         "XRANGE" if items.len() >= 4 => {
                             db_handler::handle_xrange(&db, &items, &mut handler).await?;
                         }
+                        "XREAD" if items.len() >= 4 => {
+                            db_handler::handle_xread(&db, &items, &mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
