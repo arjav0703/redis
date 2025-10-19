@@ -11,6 +11,9 @@ This is a simple Redis server written in Rust 🦀.
 - `CONFIG GET`
 - `INFO`
 - `WAIT`
+- `XRANGE` 
+- `XADD`
+- `XREAD`
 
 ### CLI args for the server:
 - `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
@@ -64,6 +67,14 @@ redis-cli INFO replication
 
 # Using the WAIT command
 redis-cli WAIT 1 1000 # waits for 1 replica to acknowledge that it is synced with the master within 1000 ms
+
+# Using the XADD and XRANGE commands to work with streams
+redis-cli XADD stream_key 0-1 temperature 95
+redis-cli XADD other_stream_key 0-2 humidity 97
+
+redis-cli XREAD streams stream_key other_stream_key 0-0 0-1
+
+
 ```
 ### Features
 - In-memory key-value store
