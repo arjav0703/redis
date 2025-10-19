@@ -92,6 +92,18 @@ impl Stream {
         &self.entries
     }
 
+    pub fn get_range(&self, start: &str, end: &str) -> Vec<&StreamEntry> {
+        let mut result = Vec::new();
+
+        for entry in &self.entries {
+            if (start == "-" || *entry.id >= *start) && (end == "+" || *entry.id <= *end) {
+                result.push(entry);
+            }
+        }
+
+        result
+    }
+
     fn validate_id(&self, id: &str) -> Result<(), anyhow::Error> {
         let id_parts: Vec<&str> = id.split('-').collect();
 

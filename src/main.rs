@@ -147,6 +147,9 @@ async fn handle_client(
                         "XADD" if items.len() >= 5 => {
                             db_handler::handle_xadd(&db, &items, &mut handler).await?;
                         }
+                        "XRANGE" if items.len() >= 4 => {
+                            db_handler::handle_xrange(&db, &items, &mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))

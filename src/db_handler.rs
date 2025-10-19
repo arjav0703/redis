@@ -1,4 +1,4 @@
-use crate::types::{KeyWithExpiry, RespHandler, RespValue};
+use crate::types::{KeyWithExpiry, RespHandler, RespValue, StreamEntry};
 use anyhow::{Ok, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -511,6 +511,55 @@ pub async fn handle_xadd(
                 .await?;
         }
     }
+
+    Ok(())
+}
+
+pub async fn handle_xrange(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    let stream_key = items[1].as_string().unwrap_or_default();
+
+    let start_id = items[2].as_string().unwrap_or_default();
+    let end_id = items[3].as_string().unwrap_or_default();
+
+    let db = db.lock().await;
+
+    let entry: KeyWithExpiry = db.get(&stream_key).unwrap().clone();
+    dbg!(&entry);
+    let stream = match &entry.value {
+        crate::types::ValueType::Stream(s) => s,
+        crate::types::ValueType::String(_) => {
+            handler
+                .write_value(RespValue::SimpleString(
+                    "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                ))
+                .await?;
+            return Ok(());
+        }
+    };
+
+    let range = stream.get_range(&start_id, &end_id);
+    dbg!(&range);
+
+    let mut resp_array = Vec::new();
+    for stream_entry in range {
+        let mut entry_array = Vec::new();
+        entry_array.push(RespValue::BulkString(stream_entry.id.clone()));
+
+        let mut field_value_array = Vec::new();
+        for (field, value) in &stream_entry.fields {
+            field_value_array.push(RespValue::BulkString(field.clone()));
+            field_value_array.push(RespValue::BulkString(value.clone()));
+        }
+
+        entry_array.push(RespValue::Array(field_value_array));
+        resp_array.push(RespValue::Array(entry_array));
+    }
+
+    handler.write_value(RespValue::Array(resp_array)).await?;
 
     Ok(())
 }
