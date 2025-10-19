@@ -11,6 +11,7 @@ use types::{KeyWithExpiry, ReplicaConnection, RespHandler, RespValue};
 mod db_handler;
 mod file_handler;
 mod replica;
+use db_handler::replica_ops;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -100,18 +101,22 @@ async fn handle_client(
                             db_handler::handle_key_search(&db, &pattern, &mut handler).await?;
                         }
                         "INFO" if items.len() == 2 => {
-                            db_handler::handle_info(&mut handler).await?;
+                            db_handler::replica_ops::handle_info(&mut handler).await?;
                         }
                         "REPLCONF" => {
                             let slave_ip = handler.get_peer_addr().unwrap();
                             dbg!(&slave_ip);
                             env::set_var("slave_ip", slave_ip.to_string());
-                            db_handler::handle_replconf(&items, &mut handler).await?;
+                            db_handler::replica_ops::handle_replconf(&items, &mut handler).await?;
                         }
                         "PSYNC" if items.len() >= 2 => {
-                            let should_become_replica =
-                                db_handler::handle_psync(&items, &db, &mut handler, &replicas)
-                                    .await?;
+                            let should_become_replica = db_handler::replica_ops::handle_psync(
+                                &items,
+                                &db,
+                                &mut handler,
+                                &replicas,
+                            )
+                            .await?;
                             if should_become_replica {
                                 // Convert this connection to a replica connection
                                 let stream = handler.into_stream();
@@ -145,13 +150,14 @@ async fn handle_client(
                             db_handler::handle_type(&db, &items, &mut handler).await?;
                         }
                         "XADD" if items.len() >= 5 => {
-                            db_handler::handle_xadd(&db, &items, &mut handler).await?;
+                            db_handler::stream_ops::handle_xadd(&db, &items, &mut handler).await?;
                         }
                         "XRANGE" if items.len() >= 4 => {
-                            db_handler::handle_xrange(&db, &items, &mut handler).await?;
+                            db_handler::stream_ops::handle_xrange(&db, &items, &mut handler)
+                                .await?;
                         }
                         "XREAD" if items.len() >= 4 => {
-                            db_handler::handle_xread(&db, &items, &mut handler).await?;
+                            db_handler::stream_ops::handle_xread(&db, &items, &mut handler).await?;
                         }
                         _ => {
                             handler
