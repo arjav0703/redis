@@ -194,7 +194,9 @@ pub async fn replica_handler(db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithE
                             match cmd_upper.as_str() {
                                 "SET" if items.len() >= 3 => {
                                     println!("Replica: Processing SET command");
-                                    if let Err(e) = db_handler::set_key_silent(&db, items).await {
+                                    if let Err(e) =
+                                        db_handler::set_key::set_key_silent(&db, items).await
+                                    {
                                         eprintln!("Replica: Error processing SET: {}", e);
                                     } else {
                                         println!("Replica: Successfully processed SET");

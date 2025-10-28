@@ -14,6 +14,7 @@ use types::{
 };
 
 mod db_handler;
+use db_handler::{set_key::*, *};
 mod file_handler;
 mod replica;
 
@@ -85,42 +86,36 @@ async fn handle_client(
                             handler.write_value(items[1].clone()).await?;
                         }
                         "SET" if items.len() >= 3 => {
-                            db_handler::set_key(&db, &items, &mut handler).await?;
+                            set_key(&db, &items, &mut handler).await?;
                             propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
                                 .await?;
                         }
-                        "GET" if items.len() == 2 => {
-                            db_handler::get_key(&db, &items, &mut handler).await?
-                        }
+                        "GET" if items.len() == 2 => get_key(&db, &items, &mut handler).await?,
                         "DEL" if items.len() >= 2 => {
-                            db_handler::del_key(&db, &items, &mut handler).await?;
+                            del_key(&db, &items, &mut handler).await?;
                             propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
                                 .await?;
                         }
                         "CONFIG" => {
-                            db_handler::handle_config(&items, &mut handler).await?;
+                            handle_config(&items, &mut handler).await?;
                         }
                         "KEYS" if items.len() == 2 => {
                             let pattern = items[1].as_string().unwrap_or_default();
-                            db_handler::handle_key_search(&db, &pattern, &mut handler).await?;
+                            handle_key_search(&db, &pattern, &mut handler).await?;
                         }
                         "INFO" if items.len() == 2 => {
-                            db_handler::replica_ops::handle_info(&mut handler).await?;
+                            replica_ops::handle_info(&mut handler).await?;
                         }
                         "REPLCONF" => {
                             let slave_ip = handler.get_peer_addr().unwrap();
                             dbg!(&slave_ip);
                             env::set_var("slave_ip", slave_ip.to_string());
-                            db_handler::replica_ops::handle_replconf(&items, &mut handler).await?;
+                            replica_ops::handle_replconf(&items, &mut handler).await?;
                         }
                         "PSYNC" if items.len() >= 2 => {
-                            let should_become_replica = db_handler::replica_ops::handle_psync(
-                                &items,
-                                &db,
-                                &mut handler,
-                                &replicas,
-                            )
-                            .await?;
+                            let should_become_replica =
+                                replica_ops::handle_psync(&items, &db, &mut handler, &replicas)
+                                    .await?;
                             if should_become_replica {
                                 // Convert this connection to a replica connection
                                 let stream = handler.into_stream();
@@ -144,24 +139,23 @@ async fn handle_client(
                             let num_replicas = items[1].as_integer().unwrap_or(0);
                             let timeout_ms = items[2].as_integer().unwrap_or(0) as u64;
 
-                            use db_handler::replica_ops::handle_wait;
+                            use replica_ops::handle_wait;
                             let ack_count =
                                 handle_wait(&replicas, num_replicas, timeout_ms).await?;
 
                             handler.write_value(RespValue::Integer(ack_count)).await?;
                         }
                         "TYPE" if items.len() == 2 => {
-                            db_handler::handle_type(&db, &items, &mut handler).await?;
+                            handle_type(&db, &items, &mut handler).await?;
                         }
                         "XADD" if items.len() >= 5 => {
-                            db_handler::stream_ops::handle_xadd(&db, &items, &mut handler).await?;
+                            stream_ops::handle_xadd(&db, &items, &mut handler).await?;
                         }
                         "XRANGE" if items.len() >= 4 => {
-                            db_handler::stream_ops::handle_xrange(&db, &items, &mut handler)
-                                .await?;
+                            stream_ops::handle_xrange(&db, &items, &mut handler).await?;
                         }
                         "XREAD" if items.len() >= 4 => {
-                            db_handler::stream_ops::handle_xread(&db, &items, &mut handler).await?;
+                            stream_ops::handle_xread(&db, &items, &mut handler).await?;
                         }
                         _ => {
                             handler
