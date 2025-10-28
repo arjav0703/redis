@@ -1,9 +1,10 @@
 use super::*;
 
-pub async fn handle_rpush(
+pub async fn handle_push(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     items: &[RespValue],
     handler: &mut RespHandler,
+    push_to_front: bool,
 ) -> Result<()> {
     let list_key = items[1].as_string().unwrap_or_default();
 
@@ -24,11 +25,21 @@ pub async fn handle_rpush(
     } else {
         vec![]
     };
-
-    for i in 2..items.len() {
-        let val = items[i].as_string().unwrap_or_default();
-        list.push(val);
+    if push_to_front {
+        for i in (2..items.len()) {
+            let val = items[i].as_string().unwrap_or_default();
+            list.insert(0, val);
+        }
+    } else {
+        for i in 2..items.len() {
+            let val = items[i].as_string().unwrap_or_default();
+            list.push(val);
+        }
     }
+    // for i in 2..items.len() {
+    //     let val = items[i].as_string().unwrap_or_default();
+    //     list.push(val);
+    // }
 
     let list_len = list.len() as i64;
 

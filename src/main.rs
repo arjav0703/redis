@@ -158,7 +158,12 @@ async fn handle_client(
                             stream_ops::handle_xread(&db, &items, &mut handler).await?;
                         }
                         "RPUSH" if items.len() >= 3 => {
-                            list_ops::handle_rpush(&db, &items, &mut handler).await?;
+                            list_ops::handle_push(&db, &items, &mut handler, false).await?;
+                            propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
+                                .await?;
+                        }
+                        "LPUSH" if items.len() >= 3 => {
+                            list_ops::handle_push(&db, &items, &mut handler, true).await?;
                             propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
                                 .await?;
                         }
