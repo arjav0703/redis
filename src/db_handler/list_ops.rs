@@ -145,3 +145,38 @@ pub async fn handle_llen(
 
     Ok(())
 }
+
+pub async fn handle_lpop(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    let list_key = items[1].as_string().unwrap_or_default();
+    let mut db = db.lock().await;
+
+    if let Some(entry) = db.get_mut(&list_key) {
+        match &mut entry.value {
+            crate::types::ValueType::List(l) => {
+                if let Some(popped_value) = l.first().cloned() {
+                    l.remove(0);
+                    handler
+                        .write_value(RespValue::BulkString(popped_value))
+                        .await?;
+                } else {
+                    handler.write_value(RespValue::NullBulkString).await?;
+                }
+            }
+            _ => {
+                handler
+                    .write_value(RespValue::SimpleString(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                    ))
+                    .await?;
+            }
+        }
+    } else {
+        handler.write_value(RespValue::NullBulkString).await?;
+    }
+
+    Ok(())
+}
