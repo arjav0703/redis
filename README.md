@@ -15,6 +15,7 @@ This is a simple Redis server written in Rust 🦀.
 - `XRANGE` 
 - `XADD`
 - `XREAD`
+- `BLOCK`
 
 ### CLI args for the server:
 - `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
@@ -81,6 +82,10 @@ redis-cli TYPE stream_key
 # responds with either `stream`, `string` or `none`
 
 redis-cli XREAD streams stream_key other_stream_key 0-0 0-1
+
+## Blocking read from streams
+redis-cli XREAD BLOCK 5000 STREAMS stream_key $
+
 
 
 ```
