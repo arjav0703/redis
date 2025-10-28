@@ -195,6 +195,29 @@ pub async fn handle_xread(
         stream_ids.push(id);
     }
 
+    // Replace $ with the largest ID in each stream
+    {
+        let db_lock = db.lock().await;
+        for (i, stream_id) in stream_ids.iter_mut().enumerate() {
+            if stream_id == "$" {
+                let stream_key = &stream_keys[i];
+                
+                // Get the current largest ID from the stream
+                if let Some(entry) = db_lock.get(stream_key) {
+                    match &entry.value {
+                        crate::types::ValueType::Stream(s) => {
+                            *stream_id = s.get_largest_id().unwrap_or("0-0").to_string();
+                        }
+                        crate::types::ValueType::String(_) => {}
+                    }
+                } else {
+                    // Stream doesn't exist yet, use "0-0"
+                    *stream_id = "0-0".to_string();
+                }
+            }
+        }
+    }
+
     // Helper function to build the response
     let build_response = |db_lock: &HashMap<String, KeyWithExpiry>| -> Result<Vec<RespValue>> {
         let mut result_streams = Vec::new();

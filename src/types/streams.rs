@@ -146,7 +146,7 @@ impl Stream {
         Ok(())
     }
 
-    fn get_largest_id(&self) -> Option<&str> {
+    pub fn get_largest_id(&self) -> Option<&str> {
         self.entries.last().map(|entry| entry.id.as_str())
     }
 }
