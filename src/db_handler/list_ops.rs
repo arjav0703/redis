@@ -152,18 +152,41 @@ pub async fn handle_lpop(
     handler: &mut RespHandler,
 ) -> Result<()> {
     let list_key = items[1].as_string().unwrap_or_default();
+
+    let elements_to_pop = if items.len() > 2 {
+        items[2].as_integer().unwrap_or(1)
+    } else {
+        1
+    };
+
     let mut db = db.lock().await;
 
     if let Some(entry) = db.get_mut(&list_key) {
         match &mut entry.value {
             crate::types::ValueType::List(l) => {
-                if let Some(popped_value) = l.first().cloned() {
-                    l.remove(0);
+                let mut popped_values = vec![];
+                let count = elements_to_pop.min(l.len() as i64) as usize;
+                
+                for _ in 0..count {
+                    if !l.is_empty() {
+                        popped_values.push(l.remove(0));
+                    }
+                }
+                
+                if popped_values.is_empty() {
+                    handler.write_value(RespValue::NullBulkString).await?;
+                } else if elements_to_pop == 1 {
                     handler
-                        .write_value(RespValue::BulkString(popped_value))
+                        .write_value(RespValue::BulkString(popped_values[0].clone()))
                         .await?;
                 } else {
-                    handler.write_value(RespValue::NullBulkString).await?;
+                    let resp_array = RespValue::Array(
+                        popped_values
+                            .iter()
+                            .map(|s| RespValue::BulkString(s.clone()))
+                            .collect(),
+                    );
+                    handler.write_value(resp_array).await?;
                 }
             }
             _ => {

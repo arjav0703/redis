@@ -173,7 +173,7 @@ async fn handle_client(
                         "LLEN" if items.len() == 2 => {
                             list_ops::handle_llen(&db, &items, &mut handler).await?;
                         }
-                        "LPOP" if items.len() == 2 => {
+                        "LPOP" if items.len() >= 2 => {
                             list_ops::handle_lpop(&db, &items, &mut handler).await?;
                             propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
                                 .await?;
