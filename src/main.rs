@@ -157,6 +157,11 @@ async fn handle_client(
                         "XREAD" if items.len() >= 4 => {
                             stream_ops::handle_xread(&db, &items, &mut handler).await?;
                         }
+                        "RPUSH" if items.len() >= 3 => {
+                            list_ops::handle_rpush(&db, &items, &mut handler).await?;
+                            propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
+                                .await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))

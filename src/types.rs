@@ -10,6 +10,7 @@ use streams::Stream;
 #[derive(Debug, Clone)]
 pub enum ValueType {
     String(String),
+    List(Vec<String>),
     Stream(Stream),
 }
 

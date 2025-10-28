@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::env;
 use std::time::{Duration, Instant};
 use tokio::time;
+pub mod list_ops;
 pub mod replica_ops;
 pub mod set_key;
 pub mod stream_ops;
@@ -56,7 +57,7 @@ pub async fn get_key(
                     .await?;
                 println!("Value found: {}", s);
             }
-            crate::types::ValueType::Stream(_) => {
+            _ => {
                 // GET on a stream should return an error or null
                 handler
                     .write_value(RespValue::SimpleString(
@@ -202,6 +203,11 @@ pub async fn handle_type(
             crate::types::ValueType::Stream(_) => {
                 handler
                     .write_value(RespValue::SimpleString("stream".into()))
+                    .await?;
+            }
+            crate::types::ValueType::List(_) => {
+                handler
+                    .write_value(RespValue::SimpleString("list".into()))
                     .await?;
             }
         }

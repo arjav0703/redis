@@ -63,7 +63,7 @@ pub async fn handle_xadd(
                 let _ = get_stream_notifier().send(key.clone());
             }
         }
-        crate::types::ValueType::String(_) => {
+        _ => {
             handler
                 .write_value(RespValue::SimpleString(
                     "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
@@ -91,7 +91,7 @@ pub async fn handle_xrange(
     dbg!(&entry);
     let stream = match &entry.value {
         crate::types::ValueType::Stream(s) => s,
-        crate::types::ValueType::String(_) => {
+        _ => {
             handler
                 .write_value(RespValue::SimpleString(
                     "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
@@ -201,14 +201,14 @@ pub async fn handle_xread(
         for (i, stream_id) in stream_ids.iter_mut().enumerate() {
             if stream_id == "$" {
                 let stream_key = &stream_keys[i];
-                
+
                 // Get the current largest ID from the stream
                 if let Some(entry) = db_lock.get(stream_key) {
                     match &entry.value {
                         crate::types::ValueType::Stream(s) => {
                             *stream_id = s.get_largest_id().unwrap_or("0-0").to_string();
                         }
-                        crate::types::ValueType::String(_) => {}
+                        _ => {}
                     }
                 } else {
                     // Stream doesn't exist yet, use "0-0"
@@ -234,7 +234,7 @@ pub async fn handle_xread(
 
             let stream = match &entry.value {
                 crate::types::ValueType::Stream(s) => s,
-                crate::types::ValueType::String(_) => {
+                _ => {
                     continue;
                 }
             };
