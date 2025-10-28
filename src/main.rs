@@ -170,6 +170,9 @@ async fn handle_client(
                         "LRANGE" if items.len() == 4 => {
                             list_ops::handle_lrange(&db, &items, &mut handler).await?;
                         }
+                        "LLEN" if items.len() == 2 => {
+                            list_ops::handle_llen(&db, &items, &mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))

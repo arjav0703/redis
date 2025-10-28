@@ -115,3 +115,33 @@ pub async fn handle_lrange(
 
     Ok(())
 }
+
+pub async fn handle_llen(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    let list_key = items[1].as_string().unwrap_or_default();
+
+    let db = db.lock().await;
+
+    if let Some(entry) = db.get(&list_key) {
+        match &entry.value {
+            crate::types::ValueType::List(l) => {
+                let list_len = l.len() as i64;
+                handler.write_value(RespValue::Integer(list_len)).await?;
+            }
+            _ => {
+                handler
+                    .write_value(RespValue::SimpleString(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                    ))
+                    .await?;
+            }
+        }
+    } else {
+        handler.write_value(RespValue::Integer(0)).await?;
+    }
+
+    Ok(())
+}
