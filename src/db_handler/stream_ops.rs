@@ -264,24 +264,42 @@ pub async fn handle_xread(
             }
 
             // No results, wait for notification or timeout
-            let timeout_duration = std::time::Duration::from_millis(timeout_ms);
-            match tokio::time::timeout(timeout_duration, rx.recv()).await {
-                Result::Ok(Result::Ok(_notification)) => {
-                    // New entry added, loop back
-                    continue;
+            // If timeout_ms is 0, block indefinitely
+            if timeout_ms == 0 {
+                // Block indefinitely until notification
+                match rx.recv().await {
+                    Result::Ok(_notification) => {
+                        // New entry added, loop back to check if it's relevant
+                        continue;
+                    }
+                    Err(_) => {
+                        // Channel closed, shouldn't happen but handle gracefully
+                        break;
+                    }
                 }
-                Result::Ok(Err(_)) => {
-                    // Channel closed
-                    break;
-                }
-                Err(_) => {
-                    // Timeout expired
-                    break;
+            } else {
+                // Block with timeout
+                let timeout_duration = std::time::Duration::from_millis(timeout_ms);
+                match tokio::time::timeout(timeout_duration, rx.recv()).await {
+                    Result::Ok(Result::Ok(_notification)) => {
+                        // New entry added, loop back
+                        continue;
+                    }
+                    Result::Ok(Err(_)) => {
+                        // Channel closed
+                        break;
+                    }
+                    Err(_) => {
+                        // Timeout expired
+                        break;
+                    }
                 }
             }
         }
 
         // Timeout expired with no results, return null array
+        // Note: This should only be reached if timeout_ms > 0 and timeout expires,
+        // or if the channel is closed unexpectedly
         handler.write_bytes(b"*-1\r\n").await?;
     } else {
         // Non-blocking: just return current results
