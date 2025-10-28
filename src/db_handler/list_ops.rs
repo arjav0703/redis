@@ -45,3 +45,62 @@ pub async fn handle_rpush(
 
     Ok(())
 }
+
+pub async fn handle_lrange(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    let list_key = items[1].as_string().unwrap_or_default();
+    let start = items[2].as_integer().unwrap_or(0);
+    let end = items[3].as_integer().unwrap_or(0);
+
+    let db = db.lock().await;
+
+    if let Some(entry) = db.get(&list_key) {
+        match &entry.value {
+            crate::types::ValueType::List(l) => {
+                let list_len = l.len() as i64;
+
+                // Handle negative indices
+                let start_idx = if start < 0 {
+                    (list_len + start).max(0)
+                } else {
+                    start.min(list_len)
+                } as usize;
+
+                let end_idx = if end < 0 {
+                    (list_len + end + 1).max(0)
+                } else {
+                    (end + 1).min(list_len)
+                } as usize;
+
+                let slice = if start_idx < end_idx && start_idx < l.len() {
+                    &l[start_idx..end_idx.min(l.len())]
+                } else {
+                    &[]
+                };
+
+                let resp_array = RespValue::Array(
+                    slice
+                        .iter()
+                        .map(|s| RespValue::BulkString(s.clone()))
+                        .collect(),
+                );
+
+                handler.write_value(resp_array).await?;
+            }
+            _ => {
+                handler
+                    .write_value(RespValue::SimpleString(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                    ))
+                    .await?;
+            }
+        }
+    } else {
+        handler.write_value(RespValue::Array(vec![])).await?;
+    }
+
+    Ok(())
+}

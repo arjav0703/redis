@@ -162,6 +162,9 @@ async fn handle_client(
                             propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
                                 .await?;
                         }
+                        "LRANGE" if items.len() == 4 => {
+                            list_ops::handle_lrange(&db, &items, &mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
