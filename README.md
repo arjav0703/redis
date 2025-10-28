@@ -11,6 +11,7 @@ This is a simple Redis server written in Rust 🦀.
 - `CONFIG GET`
 - `INFO`
 - `WAIT`
+- `TYPE`
 - `XRANGE` 
 - `XADD`
 - `XREAD`
@@ -71,6 +72,13 @@ redis-cli WAIT 1 1000 # waits for 1 replica to acknowledge that it is synced wit
 # Using the XADD and XRANGE commands to work with streams
 redis-cli XADD stream_key 0-1 temperature 95
 redis-cli XADD other_stream_key 0-2 humidity 97
+
+# Reading from streams using XRANGE
+redis-cli XRANGE stream_key - +
+
+# Determining if a key is a stream or a string 
+redis-cli TYPE stream_key
+# responds with either `stream`, `string` or `none`
 
 redis-cli XREAD streams stream_key other_stream_key 0-0 0-1
 
