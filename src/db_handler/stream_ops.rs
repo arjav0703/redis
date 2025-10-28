@@ -5,6 +5,17 @@ use crate::types::{
 use anyhow::{Ok, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::OnceLock;
+use tokio::sync::broadcast;
+
+static STREAM_NOTIFIER: OnceLock<broadcast::Sender<String>> = OnceLock::new();
+
+fn get_stream_notifier() -> &'static broadcast::Sender<String> {
+    STREAM_NOTIFIER.get_or_init(|| {
+        let (tx, _) = broadcast::channel(100);
+        tx
+    })
+}
 
 pub async fn handle_xadd(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
@@ -48,6 +59,8 @@ pub async fn handle_xadd(
             let (success, entry_id) = stream.add_entry(entry_id.clone(), fields, handler).await;
             if success {
                 handler.write_value(RespValue::BulkString(entry_id)).await?;
+                // Notify any waiting XREAD commands
+                let _ = get_stream_notifier().send(key.clone());
             }
         }
         crate::types::ValueType::String(_) => {
@@ -116,12 +129,26 @@ pub async fn handle_xread(
     items: &[RespValue],
     handler: &mut RespHandler,
 ) -> Result<()> {
-    // XREAD STREAMS <key1> <key2> ... <id1> <id2> ...
+    // XREAD [BLOCK milliseconds] STREAMS <key1> <key2> ... <id1> <id2> ...
     // Minimum: XREAD STREAMS key id = 4 items
+
+    let mut block_timeout_ms: Option<u64> = None;
+    let mut start_idx = 1;
+
+    if items.len() > 2 {
+        if let Some(s) = items[1].as_string() {
+            if s.eq_ignore_ascii_case("block") {
+                if let Some(timeout_str) = items[2].as_string() {
+                    block_timeout_ms = timeout_str.parse().ok();
+                    start_idx = 3;
+                }
+            }
+        }
+    }
 
     // Find the STREAMS keyword
     let mut streams_idx = None;
-    for (i, item) in items.iter().enumerate() {
+    for (i, item) in items.iter().enumerate().skip(start_idx) {
         if let Some(s) = item.as_string() {
             if s.eq_ignore_ascii_case("streams") {
                 streams_idx = Some(i);
@@ -168,64 +195,102 @@ pub async fn handle_xread(
         stream_ids.push(id);
     }
 
-    let db = db.lock().await;
+    // Helper function to build the response
+    let build_response = |db_lock: &HashMap<String, KeyWithExpiry>| -> Result<Vec<RespValue>> {
+        let mut result_streams = Vec::new();
 
-    // Build response array for all streams
-    let mut result_streams = Vec::new();
+        for (i, stream_key) in stream_keys.iter().enumerate() {
+            let stream_id = &stream_ids[i];
 
-    for (i, stream_key) in stream_keys.iter().enumerate() {
-        let stream_id = &stream_ids[i];
+            let entry = match db_lock.get(stream_key) {
+                Some(e) => e.clone(),
+                None => {
+                    continue;
+                }
+            };
 
-        // Get the stream from db
-        let entry = match db.get(stream_key) {
-            Some(e) => e.clone(),
-            None => {
-                // Stream doesn't exist, skip it
-                continue;
+            let stream = match &entry.value {
+                crate::types::ValueType::Stream(s) => s,
+                crate::types::ValueType::String(_) => {
+                    continue;
+                }
+            };
+
+            let entries = stream.get_entries_after(stream_id);
+
+            if !entries.is_empty() {
+                let mut entries_array = Vec::new();
+                for entry in entries {
+                    let mut entry_array = Vec::new();
+                    entry_array.push(RespValue::BulkString(entry.id.clone()));
+
+                    let mut field_value_array = Vec::new();
+                    for (field, value) in &entry.fields {
+                        field_value_array.push(RespValue::BulkString(field.clone()));
+                        field_value_array.push(RespValue::BulkString(value.clone()));
+                    }
+
+                    entry_array.push(RespValue::Array(field_value_array));
+                    entries_array.push(RespValue::Array(entry_array));
+                }
+
+                // Add this stream to the result (key + entries)
+                result_streams.push(RespValue::Array(vec![
+                    RespValue::BulkString(stream_key.clone()),
+                    RespValue::Array(entries_array),
+                ]));
             }
-        };
+        }
 
-        let stream = match &entry.value {
-            crate::types::ValueType::Stream(s) => s,
-            crate::types::ValueType::String(_) => {
+        Ok(result_streams)
+    };
+
+    if let Some(timeout_ms) = block_timeout_ms {
+        // Subscribe to stream notifications before checking the database
+        let mut rx = get_stream_notifier().subscribe();
+
+        loop {
+            // Check current state
+            let db_lock = db.lock().await;
+            let result_streams = build_response(&db_lock)?;
+            drop(db_lock);
+
+            // If we have results, return them immediately
+            if !result_streams.is_empty() {
                 handler
-                    .write_value(RespValue::SimpleString(
-                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
-                    ))
+                    .write_value(RespValue::Array(result_streams))
                     .await?;
                 return Ok(());
             }
-        };
 
-        let entries = stream.get_entries_after(stream_id);
-
-        // Build entries array for this stream
-        let mut entries_array = Vec::new();
-        for entry in entries {
-            let mut entry_array = Vec::new();
-            entry_array.push(RespValue::BulkString(entry.id.clone()));
-
-            let mut field_value_array = Vec::new();
-            for (field, value) in &entry.fields {
-                field_value_array.push(RespValue::BulkString(field.clone()));
-                field_value_array.push(RespValue::BulkString(value.clone()));
+            // No results, wait for notification or timeout
+            let timeout_duration = std::time::Duration::from_millis(timeout_ms);
+            match tokio::time::timeout(timeout_duration, rx.recv()).await {
+                Result::Ok(Result::Ok(_notification)) => {
+                    // New entry added, loop back
+                    continue;
+                }
+                Result::Ok(Err(_)) => {
+                    // Channel closed
+                    break;
+                }
+                Err(_) => {
+                    // Timeout expired
+                    break;
+                }
             }
-
-            entry_array.push(RespValue::Array(field_value_array));
-            entries_array.push(RespValue::Array(entry_array));
         }
 
-        // Add this stream to the result (key + entries)
-        result_streams.push(RespValue::Array(vec![
-            RespValue::BulkString(stream_key.clone()),
-            RespValue::Array(entries_array),
-        ]));
+        // Timeout expired with no results, return null array
+        handler.write_bytes(b"*-1\r\n").await?;
+    } else {
+        // Non-blocking: just return current results
+        let db_lock = db.lock().await;
+        let result_streams = build_response(&db_lock)?;
+        handler
+            .write_value(RespValue::Array(result_streams))
+            .await?;
     }
-
-    // Send the final response
-    handler
-        .write_value(RespValue::Array(result_streams))
-        .await?;
 
     Ok(())
 }
