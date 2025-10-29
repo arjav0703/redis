@@ -2,6 +2,7 @@ use anyhow::{Ok, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::mpsc;
 pub mod cli;
 pub mod parsers;
 use std::env;
@@ -17,6 +18,14 @@ mod db_handler;
 use db_handler::{set_key::*, *};
 mod file_handler;
 mod replica;
+
+#[derive(Debug)]
+pub struct BlockedClient {
+    pub list_key: String,
+    pub sender: mpsc::Sender<(String, String)>, // Sends (list_key, value) when unblocked
+}
+
+pub type BlockedClients = Arc<tokio::sync::Mutex<Vec<BlockedClient>>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -51,15 +60,17 @@ async fn main() -> Result<()> {
     }
 
     let replicas = Arc::new(tokio::sync::Mutex::new(Vec::<ReplicaConnection>::new()));
+    let blocked_clients: BlockedClients = Arc::new(tokio::sync::Mutex::new(Vec::new()));
 
     loop {
         let (stream, _) = listener.accept().await?;
 
         let db = db.clone();
         let replicas = replicas.clone();
+        let blocked_clients = blocked_clients.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = handle_client(stream, db, replicas).await {
+            if let Err(e) = handle_client(stream, db, replicas, blocked_clients).await {
                 eprintln!("connection error: {e:#}");
             }
         });
@@ -71,6 +82,7 @@ async fn handle_client(
     stream: TcpStream,
     db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     replicas: Arc<tokio::sync::Mutex<Vec<ReplicaConnection>>>,
+    blocked_clients: BlockedClients,
 ) -> Result<()> {
     let mut handler = RespHandler::new(stream);
     // let mut db: HashMap<String, String> = HashMap::new();
@@ -158,12 +170,26 @@ async fn handle_client(
                             stream_ops::handle_xread(&db, &items, &mut handler).await?;
                         }
                         "RPUSH" if items.len() >= 3 => {
-                            list_ops::handle_push(&db, &items, &mut handler, false).await?;
+                            list_ops::handle_push(
+                                &db,
+                                &items,
+                                &mut handler,
+                                false,
+                                &blocked_clients,
+                            )
+                            .await?;
                             propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
                                 .await?;
                         }
                         "LPUSH" if items.len() >= 3 => {
-                            list_ops::handle_push(&db, &items, &mut handler, true).await?;
+                            list_ops::handle_push(
+                                &db,
+                                &items,
+                                &mut handler,
+                                true,
+                                &blocked_clients,
+                            )
+                            .await?;
                             propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
                                 .await?;
                         }
@@ -176,6 +202,10 @@ async fn handle_client(
                         "LPOP" if items.len() >= 2 => {
                             list_ops::handle_lpop(&db, &items, &mut handler).await?;
                             propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
+                                .await?;
+                        }
+                        "BLPOP" if items.len() >= 3 => {
+                            list_ops::handle_blpop(&db, &items, &mut handler, &blocked_clients)
                                 .await?;
                         }
                         _ => {

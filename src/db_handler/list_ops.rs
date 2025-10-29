@@ -1,58 +1,85 @@
 use super::*;
+use tokio::sync::mpsc;
+
+pub type BlockedClients = Arc<tokio::sync::Mutex<Vec<crate::BlockedClient>>>;
 
 pub async fn handle_push(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     items: &[RespValue],
     handler: &mut RespHandler,
     push_to_front: bool,
+    blocked_clients: &BlockedClients,
 ) -> Result<()> {
     let list_key = items[1].as_string().unwrap_or_default();
 
-    let mut db = db.lock().await;
+    // add elements to the list
+    {
+        let mut db_lock = db.lock().await;
 
-    let mut list = if let Some(entry) = db.get(&list_key) {
-        match &entry.value {
-            crate::types::ValueType::List(l) => l.clone(),
-            _ => {
-                handler
-                    .write_value(RespValue::SimpleString(
-                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
-                    ))
-                    .await?;
-                return Ok(());
+        let mut list = if let Some(entry) = db_lock.get(&list_key) {
+            match &entry.value {
+                crate::types::ValueType::List(l) => l.clone(),
+                _ => {
+                    handler
+                        .write_value(RespValue::SimpleString(
+                            "WRONGTYPE Operation against a key holding the wrong kind of value"
+                                .into(),
+                        ))
+                        .await?;
+                    return Ok(());
+                }
+            }
+        } else {
+            vec![]
+        };
+
+        if push_to_front {
+            for i in 2..items.len() {
+                let val = items[i].as_string().unwrap_or_default();
+                list.insert(0, val);
+            }
+        } else {
+            for i in 2..items.len() {
+                let val = items[i].as_string().unwrap_or_default();
+                list.push(val);
             }
         }
+
+        let list_len = list.len() as i64;
+
+        db_lock.insert(
+            list_key.clone(),
+            KeyWithExpiry {
+                value: crate::types::ValueType::List(list),
+                expiry: None,
+            },
+        );
+
+        handler.write_value(RespValue::Integer(list_len)).await?;
+    }
+
+    // Check if any clients are blocked on this list
+    let mut blocked = blocked_clients.lock().await;
+    let client_to_notify = if let Some(pos) = blocked.iter().position(|c| c.list_key == list_key) {
+        Some(blocked.remove(pos))
     } else {
-        vec![]
+        None
     };
-    if push_to_front {
-        for i in (2..items.len()) {
-            let val = items[i].as_string().unwrap_or_default();
-            list.insert(0, val);
-        }
-    } else {
-        for i in 2..items.len() {
-            let val = items[i].as_string().unwrap_or_default();
-            list.push(val);
+    drop(blocked); // Release lock before async operations
+
+    // If we found a blocked client, pop an element for them immediately
+    if let Some(client) = client_to_notify {
+        let mut db_lock = db.lock().await;
+        if let Some(entry) = db_lock.get_mut(&list_key) {
+            if let crate::types::ValueType::List(l) = &mut entry.value {
+                if let Some(popped_value) = l.first().cloned() {
+                    l.remove(0);
+                    // Send to the blocked client (key, value)
+                    let _ = client.sender.send((list_key.clone(), popped_value)).await;
+                }
+            }
         }
     }
-    // for i in 2..items.len() {
-    //     let val = items[i].as_string().unwrap_or_default();
-    //     list.push(val);
-    // }
-
-    let list_len = list.len() as i64;
-
-    db.insert(
-        list_key,
-        KeyWithExpiry {
-            value: crate::types::ValueType::List(list),
-            expiry: None,
-        },
-    );
-
-    // Return the length of the list as a RESP integer
-    handler.write_value(RespValue::Integer(list_len)).await?;
 
     Ok(())
 }
@@ -166,13 +193,13 @@ pub async fn handle_lpop(
             crate::types::ValueType::List(l) => {
                 let mut popped_values = vec![];
                 let count = elements_to_pop.min(l.len() as i64) as usize;
-                
+
                 for _ in 0..count {
                     if !l.is_empty() {
                         popped_values.push(l.remove(0));
                     }
                 }
-                
+
                 if popped_values.is_empty() {
                     handler.write_value(RespValue::NullBulkString).await?;
                 } else if elements_to_pop == 1 {
@@ -199,6 +226,74 @@ pub async fn handle_lpop(
         }
     } else {
         handler.write_value(RespValue::NullBulkString).await?;
+    }
+
+    Ok(())
+}
+
+pub async fn handle_blpop(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+    blocked_clients: &BlockedClients,
+) -> Result<()> {
+    // BLPOP key [key ...] timeout
+    // For now, we only handle single key (items[1]) and timeout (items[2])
+    let list_key = items[1].as_string().unwrap_or_default();
+    let _timeout = items[2].as_integer().unwrap_or(0);
+
+    // First check if the list exists and has elements
+    {
+        let mut db = db.lock().await;
+        if let Some(entry) = db.get_mut(&list_key) {
+            match &mut entry.value {
+                crate::types::ValueType::List(l) => {
+                    if !l.is_empty() {
+                        // List has elements, pop immediately
+                        let popped_value = l.remove(0);
+                        let resp_array = RespValue::Array(vec![
+                            RespValue::BulkString(list_key),
+                            RespValue::BulkString(popped_value),
+                        ]);
+                        handler.write_value(resp_array).await?;
+                        return Ok(());
+                    }
+                }
+                _ => {
+                    handler
+                        .write_value(RespValue::SimpleString(
+                            "WRONGTYPE Operation against a key holding the wrong kind of value"
+                                .into(),
+                        ))
+                        .await?;
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    // List is empty or doesn't exist, block the client
+    // Create a channel to receive notification when element is available
+    let (tx, mut rx) = mpsc::channel::<(String, String)>(1);
+
+    // Register this client as blocked
+    {
+        let mut blocked = blocked_clients.lock().await;
+        blocked.push(crate::BlockedClient {
+            list_key: list_key.clone(),
+            sender: tx,
+        });
+    }
+
+    // Wait for notification (blocks indefinitely for timeout=0)
+    // In a later stage, we'll handle non-zero timeouts
+    if let Some((key, value)) = rx.recv().await {
+        // Received notification, send response
+        let resp_array = RespValue::Array(vec![
+            RespValue::BulkString(key),
+            RespValue::BulkString(value),
+        ]);
+        handler.write_value(resp_array).await?;
     }
 
     Ok(())
