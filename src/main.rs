@@ -85,7 +85,7 @@ async fn handle_client(
     blocked_clients: BlockedClients,
 ) -> Result<()> {
     let mut handler = RespHandler::new(stream);
-    // let mut db: HashMap<String, String> = HashMap::new();
+    let mut subscribed_channels = std::collections::HashSet::<String>::new();
 
     while let Some(val) = handler.read_value().await? {
         match val {
@@ -209,7 +209,12 @@ async fn handle_client(
                                 .await?;
                         }
                         "SUBSCRIBE" if items.len() >= 2 => {
-                            pub_sub::handle_subscribe(&items, &mut handler).await?;
+                            pub_sub::handle_subscribe(
+                                &items,
+                                &mut handler,
+                                &mut subscribed_channels,
+                            )
+                            .await?;
                         }
                         _ => {
                             handler
