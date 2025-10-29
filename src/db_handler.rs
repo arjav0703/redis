@@ -17,14 +17,29 @@ pub mod stream_ops;
 
 /// Intended to handle the ping command. it the string provided after the ping command or defaults
 /// to PONG if nothing ilse is provided
-pub async fn send_pong(handler: &mut RespHandler, items: &[RespValue]) -> Result<()> {
-    let payload = if items.len() > 1 {
-        items[1].as_string().unwrap_or_else(|| "PONG".into())
-    } else {
-        "PONG".into()
-    };
+pub async fn send_pong(
+    handler: &mut RespHandler,
+    items: &[RespValue],
+    is_subscribed: bool,
+) -> Result<()> {
+    // dbg!(&is_subscribed);
+    if !is_subscribed {
+        let payload = if items.len() > 1 {
+            items[1].as_string().unwrap_or_else(|| "PONG".into())
+        } else {
+            "PONG".into()
+        };
+        handler
+            .write_value(RespValue::SimpleString(payload))
+            .await?;
+        return Ok(());
+    }
+
     handler
-        .write_value(RespValue::SimpleString(payload))
+        .write_value(RespValue::Array(vec![
+            RespValue::BulkString("pong".into()),
+            RespValue::BulkString("".into()),
+        ]))
         .await?;
     Ok(())
 }
