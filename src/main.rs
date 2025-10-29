@@ -208,6 +208,9 @@ async fn handle_client(
                             list_ops::handle_blpop(&db, &items, &mut handler, &blocked_clients)
                                 .await?;
                         }
+                        "SUBSCRIBE" if items.len() >= 2 => {
+                            pub_sub::handle_subscribe(&items, &mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))

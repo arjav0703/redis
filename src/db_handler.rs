@@ -10,6 +10,7 @@ use std::env;
 use std::time::{Duration, Instant};
 use tokio::time;
 pub mod list_ops;
+pub mod pub_sub;
 pub mod replica_ops;
 pub mod set_key;
 pub mod stream_ops;
