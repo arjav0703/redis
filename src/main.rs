@@ -61,6 +61,8 @@ async fn main() -> Result<()> {
 
     let replicas = Arc::new(tokio::sync::Mutex::new(Vec::<ReplicaConnection>::new()));
     let blocked_clients: BlockedClients = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+    let channels_map: Arc<tokio::sync::Mutex<HashMap<String, usize>>> =
+        Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
     loop {
         let (stream, _) = listener.accept().await?;
@@ -68,9 +70,12 @@ async fn main() -> Result<()> {
         let db = db.clone();
         let replicas = replicas.clone();
         let blocked_clients = blocked_clients.clone();
+        let channels_map = channels_map.clone();
 
         tokio::spawn(async move {
-            if let Err(e) = handle_client(stream, db, replicas, blocked_clients).await {
+            if let Err(e) =
+                handle_client(stream, db, replicas, blocked_clients, channels_map).await
+            {
                 eprintln!("connection error: {e:#}");
             }
         });
@@ -83,10 +88,11 @@ async fn handle_client(
     db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     replicas: Arc<tokio::sync::Mutex<Vec<ReplicaConnection>>>,
     blocked_clients: BlockedClients,
+    channels_map: Arc<tokio::sync::Mutex<HashMap<String, usize>>>,
 ) -> Result<()> {
     let mut handler = RespHandler::new(stream);
     let mut subscribed_channels = std::collections::HashSet::<String>::new();
-    let mut is_subscribed = !subscribed_channels.is_empty();
+    let mut is_subscribed: bool;
 
     while let Some(val) = handler.read_value().await? {
         match val {
@@ -233,11 +239,15 @@ async fn handle_client(
                             list_ops::handle_blpop(&db, &items, &mut handler, &blocked_clients)
                                 .await?;
                         }
+                        "PUBLISH" if items.len() >= 3 => {
+                            pub_sub::handle_publish(&items, &channels_map, &mut handler).await?;
+                        }
                         "SUBSCRIBE" if items.len() >= 2 => {
                             pub_sub::handle_subscribe(
                                 &items,
                                 &mut handler,
                                 &mut subscribed_channels,
+                                &channels_map,
                             )
                             .await?;
                         }
@@ -256,6 +266,21 @@ async fn handle_client(
             }
         }
     }
+
+    // Cleanup: when the client connection ends, decrement global channel counts
+    if !subscribed_channels.is_empty() {
+        let mut map = channels_map.lock().await;
+        for ch in subscribed_channels.iter() {
+            if let Some(counter) = map.get_mut(ch) {
+                if *counter > 0 {
+                    *counter -= 1;
+                }
+            }
+        }
+        // Remove channels with zero subscribers
+        map.retain(|_, &mut v| v > 0);
+    }
+
     Ok(())
 }
 
