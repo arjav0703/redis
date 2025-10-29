@@ -86,15 +86,38 @@ async fn handle_client(
 ) -> Result<()> {
     let mut handler = RespHandler::new(stream);
     let mut subscribed_channels = std::collections::HashSet::<String>::new();
+    let is_subscribed = !subscribed_channels.is_empty();
 
+    dbg!(&is_subscribed);
     while let Some(val) = handler.read_value().await? {
         match val {
             RespValue::Array(items) if !items.is_empty() => {
                 if let RespValue::BulkString(cmd) | RespValue::SimpleString(cmd) = &items[0] {
                     let cmd_upper = cmd.to_ascii_uppercase();
+
+                    if !subscribed_channels.is_empty() {
+                        const ALLOWED: [&str; 7] = [
+                            "SUBSCRIBE",
+                            "UNSUBSCRIBE",
+                            "PSUBSCRIBE",
+                            "PUNSUBSCRIBE",
+                            "PING",
+                            "QUIT",
+                            "RESET",
+                        ];
+
+                        if !ALLOWED.contains(&cmd_upper.as_str()) {
+                            let err_msg = format!(
+                                "ERR Can't execute '{}' in subscribed mode",
+                                cmd.to_ascii_lowercase()
+                            );
+                            handler.write_value(RespValue::SimpleError(err_msg)).await?;
+                            continue;
+                        }
+                    }
                     match cmd_upper.as_str() {
                         "PING" => db_handler::send_pong(&mut handler, &items).await?,
-                        "ECHO" if items.len() == 2 => {
+                        "ECHO" if items.len() == 2 && !is_subscribed => {
                             handler.write_value(items[1].clone()).await?;
                         }
                         "SET" if items.len() >= 3 => {
