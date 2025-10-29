@@ -238,11 +238,12 @@ pub async fn handle_blpop(
     blocked_clients: &BlockedClients,
 ) -> Result<()> {
     // BLPOP key [key ...] timeout
-    // For now, we only handle single key (items[1]) and timeout (items[2])
     let list_key = items[1].as_string().unwrap_or_default();
-    let _timeout = items[2].as_integer().unwrap_or(0);
+    let timeout_secs = items[2].as_string().unwrap_or_default();
 
-    // First check if the list exists and has elements
+    let timeout_float: f64 = timeout_secs.parse().unwrap_or(0.0);
+
+    // check if the list exists and has elements
     {
         let mut db = db.lock().await;
         if let Some(entry) = db.get_mut(&list_key) {
@@ -285,15 +286,35 @@ pub async fn handle_blpop(
         });
     }
 
-    // Wait for notification (blocks indefinitely for timeout=0)
-    // In a later stage, we'll handle non-zero timeouts
-    if let Some((key, value)) = rx.recv().await {
-        // Received notification, send response
-        let resp_array = RespValue::Array(vec![
-            RespValue::BulkString(key),
-            RespValue::BulkString(value),
-        ]);
-        handler.write_value(resp_array).await?;
+    if timeout_float > 0.0 {
+        let timeout_duration = tokio::time::Duration::from_secs_f64(timeout_float);
+
+        // Wait with timeout
+        match tokio::time::timeout(timeout_duration, rx.recv()).await {
+            std::result::Result::Ok(Some((key, value))) => {
+                let resp_array = RespValue::Array(vec![
+                    RespValue::BulkString(key),
+                    RespValue::BulkString(value),
+                ]);
+                handler.write_value(resp_array).await?;
+            }
+            std::result::Result::Ok(None) | std::result::Result::Err(_) => {
+                // Remove from blocked clients list
+                let mut blocked = blocked_clients.lock().await;
+                blocked.retain(|c| c.list_key != list_key);
+
+                handler.write_bytes(b"*-1\r\n").await?;
+            }
+        }
+    } else {
+        // timeout = 0, block indefinitely
+        if let Some((key, value)) = rx.recv().await {
+            let resp_array = RespValue::Array(vec![
+                RespValue::BulkString(key),
+                RespValue::BulkString(value),
+            ]);
+            handler.write_value(resp_array).await?;
+        }
     }
 
     Ok(())
