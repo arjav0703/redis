@@ -12,6 +12,7 @@ pub enum ValueType {
     String(String),
     List(Vec<String>),
     Stream(Stream),
+    SortedSet(Vec<(String, f64)>),
 }
 
 /// Struct to store a key inside the hashmap. It allows you to set an expiry time (optional)

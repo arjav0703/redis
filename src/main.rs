@@ -15,7 +15,10 @@ use types::{
 };
 
 mod db_handler;
-use db_handler::{set_key::*, *};
+use db_handler::{
+    del_key, get_key, handle_config, handle_key_search, handle_type, list_ops, pub_sub,
+    replica_ops, set_key::*, sorted_set, stream_ops,
+};
 mod file_handler;
 mod replica;
 
@@ -287,6 +290,11 @@ async fn handle_client(
                                 &channel_subscribers,
                             )
                             .await?;
+                        }
+                        "ZADD" if items.len() >= 4 => {
+                            sorted_set::zadd(&db, &items, &mut handler).await?;
+                            propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
+                                .await?;
                         }
                         _ => {
                             handler

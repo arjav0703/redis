@@ -13,6 +13,7 @@ pub mod list_ops;
 pub mod pub_sub;
 pub mod replica_ops;
 pub mod set_key;
+pub mod sorted_set;
 pub mod stream_ops;
 
 /// Intended to handle the ping command. it the string provided after the ping command or defaults
@@ -224,6 +225,11 @@ pub async fn handle_type(
             crate::types::ValueType::List(_) => {
                 handler
                     .write_value(RespValue::SimpleString("list".into()))
+                    .await?;
+            }
+            crate::types::ValueType::SortedSet(_) => {
+                handler
+                    .write_value(RespValue::SimpleString("set".into()))
                     .await?;
             }
         }
