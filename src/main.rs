@@ -27,6 +27,10 @@ pub struct BlockedClient {
 
 pub type BlockedClients = Arc<tokio::sync::Mutex<Vec<BlockedClient>>>;
 
+// Maps channel_name -> list of senders that can receive messages
+pub type ChannelSubscribers =
+    Arc<tokio::sync::Mutex<HashMap<String, Vec<mpsc::Sender<(String, String)>>>>>;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     set_env_vars();
@@ -63,6 +67,7 @@ async fn main() -> Result<()> {
     let blocked_clients: BlockedClients = Arc::new(tokio::sync::Mutex::new(Vec::new()));
     let channels_map: Arc<tokio::sync::Mutex<HashMap<String, usize>>> =
         Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+    let channel_subscribers: ChannelSubscribers = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
     loop {
         let (stream, _) = listener.accept().await?;
@@ -71,10 +76,18 @@ async fn main() -> Result<()> {
         let replicas = replicas.clone();
         let blocked_clients = blocked_clients.clone();
         let channels_map = channels_map.clone();
+        let channel_subscribers = channel_subscribers.clone();
 
         tokio::spawn(async move {
-            if let Err(e) =
-                handle_client(stream, db, replicas, blocked_clients, channels_map).await
+            if let Err(e) = handle_client(
+                stream,
+                db,
+                replicas,
+                blocked_clients,
+                channels_map,
+                channel_subscribers,
+            )
+            .await
             {
                 eprintln!("connection error: {e:#}");
             }
@@ -89,12 +102,24 @@ async fn handle_client(
     replicas: Arc<tokio::sync::Mutex<Vec<ReplicaConnection>>>,
     blocked_clients: BlockedClients,
     channels_map: Arc<tokio::sync::Mutex<HashMap<String, usize>>>,
+    channel_subscribers: ChannelSubscribers,
 ) -> Result<()> {
     let mut handler = RespHandler::new(stream);
     let mut subscribed_channels = std::collections::HashSet::<String>::new();
     let mut is_subscribed: bool;
 
-    while let Some(val) = handler.read_value().await? {
+    // channel for receiving pub/sub messages
+    let (msg_tx, mut msg_rx) = mpsc::channel::<(String, String)>(100);
+
+    loop {
+        tokio::select! {
+            // incoming commands from client
+            val = handler.read_value() => {
+                let val = match val? {
+                    Some(v) => v,
+                    None => break, // disconnected
+                };
+
         match val {
             RespValue::Array(items) if !items.is_empty() => {
                 if let RespValue::BulkString(cmd) | RespValue::SimpleString(cmd) = &items[0] {
@@ -240,7 +265,7 @@ async fn handle_client(
                                 .await?;
                         }
                         "PUBLISH" if items.len() >= 3 => {
-                            pub_sub::handle_publish(&items, &channels_map, &mut handler).await?;
+                            pub_sub::handle_publish(&items, &channels_map, &channel_subscribers, &mut handler).await?;
                         }
                         "SUBSCRIBE" if items.len() >= 2 => {
                             pub_sub::handle_subscribe(
@@ -248,6 +273,8 @@ async fn handle_client(
                                 &mut handler,
                                 &mut subscribed_channels,
                                 &channels_map,
+                                &channel_subscribers,
+                                msg_tx.clone(),
                             )
                             .await?;
                         }
@@ -263,6 +290,18 @@ async fn handle_client(
                 handler
                     .write_value(RespValue::SimpleString("PONG".into()))
                     .await?;
+            }
+        }
+            }
+
+            // Handle outgoing pub/sub messages
+            Some((channel, message)) = msg_rx.recv() => {
+                let resp_array = RespValue::Array(vec![
+                    RespValue::BulkString("message".to_string()),
+                    RespValue::BulkString(channel),
+                    RespValue::BulkString(message),
+                ]);
+                handler.write_value(resp_array).await?;
             }
         }
     }
