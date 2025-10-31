@@ -278,6 +278,16 @@ async fn handle_client(
                             )
                             .await?;
                         }
+                        "UNSUBSCRIBE" if items.len() >= 2 => {
+                            pub_sub::handle_unsubscribe(
+                                &items,
+                                &mut handler,
+                                &mut subscribed_channels,
+                                &channels_map,
+                                &channel_subscribers,
+                            )
+                            .await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
