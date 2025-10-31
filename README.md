@@ -16,6 +16,9 @@ This is a simple Redis server written in Rust 🦀.
 - `XADD`
 - `XREAD`
 - `BLOCK`
+- `SUBSCRIBE`
+- `PUBLISH`
+- `UNSUBSCRIBE`
 
 ### CLI args for the server:
 - `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
@@ -86,7 +89,12 @@ redis-cli XREAD streams stream_key other_stream_key 0-0 0-1
 ## Blocking read from streams
 redis-cli XREAD BLOCK 5000 STREAMS stream_key $
 
-
+# Subscribe to a channel
+redis-cli SUBSCRIBE my_channel
+# In another terminal, publish a message to the channel
+redis-cli PUBLISH my_channel "Hello, Subscribers!"
+# Unsubscribe from the channel
+redis-cli UNSUBSCRIBE my_channel
 
 ```
 ### Features
