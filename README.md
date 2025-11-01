@@ -24,6 +24,8 @@ This is a simple Redis server written in Rust 🦀.
 - `ZREM`
 - `ZRANK`
 - `ZCARD`
+- `GEOADD`
+- `GEOPOS`
 
 ### CLI args for the server:
 - `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
@@ -110,6 +112,11 @@ redis-cli ZRANGE my_zset 0 -1
 redis-cli ZRANK my_zset "two"
 redis-cli ZCARD my_zset
 redis-cli ZREM my_zset "one"
+
+# Using geospatial commands
+redis-cli GEOADD my_geo 13.361389 38.115556 "Palermo"
+redis-cli GEOADD my_geo 15.087269 37.502669 "Catania"
+redis-cli GEOPOS my_geo "Palermo" "Catania"
 ```
 ### Features
 - In-memory key-value store
