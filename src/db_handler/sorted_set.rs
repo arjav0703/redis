@@ -144,6 +144,36 @@ pub async fn zrange(
     Ok(())
 }
 
+pub async fn zcard(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    let key = items[1].as_string().unwrap();
+
+    let db_lock = db.lock().await;
+    if let Some(entry) = db_lock.get(&key) {
+        match &entry.value {
+            crate::types::ValueType::SortedSet(vec) => {
+                handler
+                    .write_value(RespValue::Integer(vec.len() as i64))
+                    .await?;
+            }
+            _ => {
+                handler
+                    .write_value(RespValue::SimpleString(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                    ))
+                    .await?;
+            }
+        }
+    } else {
+        handler.write_value(RespValue::Integer(0)).await?;
+    }
+
+    Ok(())
+}
+
 async fn sort_set(vec: &mut [(String, f64)], ascending: bool) {
     if ascending {
         vec.sort_by(|a, b| {
