@@ -16,7 +16,7 @@ use types::{
 
 mod db_handler;
 use db_handler::{
-    del_key, get_key, handle_config, handle_key_search, handle_type, list_ops, pub_sub,
+    del_key, geo, get_key, handle_config, handle_key_search, handle_type, list_ops, pub_sub,
     replica_ops, set_key::*, sorted_set, stream_ops,
 };
 mod file_handler;
@@ -310,6 +310,11 @@ async fn handle_client(
                         }
                         "ZREM" if items.len() >= 3 => {
                             sorted_set::zrem(&db, &items, &mut handler).await?;
+                            propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
+                                .await?;
+                        }
+                        "GEOADD" if items.len() >= 5 => {
+                            geo::add(&db, &items, &mut handler).await?;
                             propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
                                 .await?;
                         }
