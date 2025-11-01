@@ -19,6 +19,11 @@ This is a simple Redis server written in Rust 🦀.
 - `SUBSCRIBE`
 - `PUBLISH`
 - `UNSUBSCRIBE`
+- `ZADD`
+- `ZRANGE`
+- `ZREM`
+- `ZRANK`
+- `ZCARD`
 
 ### CLI args for the server:
 - `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
@@ -96,6 +101,15 @@ redis-cli PUBLISH my_channel "Hello, Subscribers!"
 # Unsubscribe from the channel
 redis-cli UNSUBSCRIBE my_channel
 
+
+# Using sorted sets commands
+redis-cli ZADD my_zset 1 "one"
+redis-cli ZADD my_zset 2 "two"
+redis-cli ZRANGE my_zset 0 -1 
+
+redis-cli ZRANK my_zset "two"
+redis-cli ZCARD my_zset
+redis-cli ZREM my_zset "one"
 ```
 ### Features
 - In-memory key-value store
