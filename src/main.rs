@@ -299,6 +299,9 @@ async fn handle_client(
                         "ZRANK" if items.len() >= 3 => {
                             sorted_set::zrank(&db, &items, &mut handler).await?;
                         }
+                        "ZRANGE" if items.len() >= 4 => {
+                            sorted_set::zrange(&db, &items, &mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))

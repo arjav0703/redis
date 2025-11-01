@@ -99,6 +99,51 @@ pub async fn zrank(
     Ok(())
 }
 
+pub async fn zrange(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    let key = items[1].as_string().unwrap();
+    let start: isize = items[2]
+        .as_string()
+        .and_then(|s| s.parse::<isize>().ok())
+        .unwrap_or(0);
+    let stop: isize = items[3]
+        .as_string()
+        .and_then(|s| s.parse::<isize>().ok())
+        .unwrap_or(-1);
+
+    let db_lock = db.lock().await;
+    if let Some(entry) = db_lock.get(&key) {
+        match &entry.value {
+            crate::types::ValueType::SortedSet(vec) => {
+                let len = vec.len() as isize;
+                let start_idx = if start < 0 { len + start } else { start }.max(0) as usize;
+                let stop_idx = if stop < 0 { len + stop } else { stop }.min(len - 1) as usize;
+
+                let result: Vec<RespValue> = vec[start_idx..=stop_idx]
+                    .iter()
+                    .map(|(m, _)| RespValue::BulkString(m.clone()))
+                    .collect();
+
+                handler.write_value(RespValue::Array(result)).await?;
+            }
+            _ => {
+                handler
+                    .write_value(RespValue::SimpleString(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                    ))
+                    .await?;
+            }
+        }
+    } else {
+        handler.write_value(RespValue::Array(vec![])).await?;
+    }
+
+    Ok(())
+}
+
 async fn sort_set(vec: &mut [(String, f64)], ascending: bool) {
     if ascending {
         vec.sort_by(|a, b| {
