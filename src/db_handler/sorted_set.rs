@@ -45,5 +45,82 @@ pub async fn zadd(
         handler.write_value(RespValue::Integer(1)).await?;
     }
 
+    let unsorted_vec = match &db_lock.get(&key).unwrap().value {
+        crate::types::ValueType::SortedSet(vec) => vec.clone(),
+        _ => vec![],
+    };
+    let mut sorted_vec = unsorted_vec.clone();
+    sort_set(&mut sorted_vec, true).await;
+    db_lock.insert(
+        key,
+        KeyWithExpiry {
+            value: crate::types::ValueType::SortedSet(sorted_vec),
+            expiry: None,
+        },
+    );
+
     Ok(())
+}
+
+pub async fn zrank(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    let key = items[1].as_string().unwrap();
+    let member = items[2].as_string().unwrap_or_default();
+
+    let db_lock = db.lock().await;
+    if let Some(entry) = db_lock.get(&key) {
+        match &entry.value {
+            crate::types::ValueType::SortedSet(vec) => {
+                if let Some((index, _)) = vec.iter().enumerate().find(|(_, (m, _))| m == &member) {
+                    handler
+                        .write_value(RespValue::Integer(index as i64))
+                        .await?;
+                } else {
+                    // Member not found in the sorted set
+                    handler.write_value(RespValue::NullBulkString).await?;
+                }
+            }
+            _ => {
+                handler
+                    .write_value(RespValue::SimpleString(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                    ))
+                    .await?;
+            }
+        }
+    } else {
+        // Sorted set key doesn't exist
+        handler.write_value(RespValue::NullBulkString).await?;
+    }
+
+    Ok(())
+}
+
+async fn sort_set(vec: &mut [(String, f64)], ascending: bool) {
+    if ascending {
+        vec.sort_by(|a, b| {
+            // First compare by score
+            match a.1.partial_cmp(&b.1) {
+                Some(std::cmp::Ordering::Equal) => {
+                    // If scores are equal, compare lexicographically by member name
+                    a.0.cmp(&b.0)
+                }
+                other => other.unwrap(),
+            }
+        });
+    } else {
+        vec.sort_by(|a, b| {
+            // First compare by score (descending)
+            match b.1.partial_cmp(&a.1) {
+                Some(std::cmp::Ordering::Equal) => {
+                    // If scores are equal, compare lexicographically by member name
+                    a.0.cmp(&b.0)
+                }
+                other => other.unwrap(),
+            }
+        });
+    }
 }

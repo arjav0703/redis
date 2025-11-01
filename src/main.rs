@@ -296,6 +296,9 @@ async fn handle_client(
                             propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
                                 .await?;
                         }
+                        "ZRANK" if items.len() >= 3 => {
+                            sorted_set::zrank(&db, &items, &mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
