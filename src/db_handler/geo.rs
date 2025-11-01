@@ -85,14 +85,14 @@ pub async fn pos(
     if let Some(entry) = db.get(&key) {
         match &entry.value {
             crate::types::ValueType::SortedSet(vec) => {
-                // For each requested member, return either ["0","0"] or null array
+                // For each requested member, return either [longitude, latitude] or null array
                 for member_item in &items[2..] {
                     let member = member_item.as_string().unwrap_or_default();
-                    if let Some((_m, _score)) = vec.iter().find(|(m, _)| m == &member) {
-                        // Per instructions we can hardcode lat/long to "0"
+                    if let Some((_m, score)) = vec.iter().find(|(m, _)| m == &member) {
+                        let (latitude, longitude) = decode::decode(*score as u64);
                         let mut coord = Vec::new();
-                        coord.push(RespValue::BulkString("0".to_string()));
-                        coord.push(RespValue::BulkString("0".to_string()));
+                        coord.push(RespValue::BulkString(longitude.to_string()));
+                        coord.push(RespValue::BulkString(latitude.to_string()));
                         response_items.push(RespValue::Array(coord));
                     } else {
                         // Member not found -> null array
