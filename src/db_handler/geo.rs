@@ -1,4 +1,5 @@
 use super::*;
+mod encode;
 
 pub async fn add(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
@@ -23,16 +24,18 @@ pub async fn add(
         return Ok(());
     }
 
+    let score = encode::encode(latitude, longitude);
+
     let mut db = db.lock().await;
 
     if let Some(entry) = db.get_mut(&key) {
         match &mut entry.value {
             crate::types::ValueType::SortedSet(vec) => {
                 if let Some(existing) = vec.iter_mut().find(|(m, _)| m == &member) {
-                    existing.1 = 0.0;
+                    existing.1 = score as f64;
                     handler.write_value(RespValue::Integer(0)).await?;
                 } else {
-                    vec.push((member.clone(), 0.0));
+                    vec.push((member.clone(), score as f64));
                     handler.write_value(RespValue::Integer(1)).await?;
                 }
             }
@@ -49,7 +52,7 @@ pub async fn add(
         db.insert(
             key.clone(),
             KeyWithExpiry {
-                value: crate::types::ValueType::SortedSet(vec![(member.clone(), 0.0)]),
+                value: crate::types::ValueType::SortedSet(vec![(member.clone(), score as f64)]),
                 expiry: None,
             },
         );
