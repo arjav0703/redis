@@ -14,6 +14,7 @@ pub enum RespValue {
     SimpleError(String),
     BulkString(String),
     NullBulkString,
+    NullArray,
     Integer(i64),
     Array(Vec<RespValue>),
 }
@@ -27,6 +28,9 @@ impl RespValue {
             RespValue::NullBulkString => {
                 println!("Encoding NullBulkString as $-1\\r\\n");
                 "$-1\r\n".to_string()
+            }
+            RespValue::NullArray => {
+                "*-1\r\n".to_string()
             }
             RespValue::Integer(i) => format!(":{i}\r\n"),
             RespValue::Array(items) => {

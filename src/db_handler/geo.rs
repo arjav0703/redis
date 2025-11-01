@@ -1,4 +1,5 @@
 use super::*;
+mod decode;
 mod encode;
 
 pub async fn add(
@@ -67,4 +68,54 @@ fn validate_longitude(longitude: f64) -> bool {
 
 fn validate_latitude(latitude: f64) -> bool {
     latitude >= -85.05112878 && latitude <= 85.05112878
+}
+
+pub async fn pos(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    // > GEOPOS places London Munich
+    // items[1] = key, items[2..] = members
+    let key = items[1].as_string().unwrap();
+
+    let db = db.lock().await;
+    let mut response_items: Vec<RespValue> = Vec::new();
+
+    if let Some(entry) = db.get(&key) {
+        match &entry.value {
+            crate::types::ValueType::SortedSet(vec) => {
+                // For each requested member, return either ["0","0"] or null array
+                for member_item in &items[2..] {
+                    let member = member_item.as_string().unwrap_or_default();
+                    if let Some((_m, _score)) = vec.iter().find(|(m, _)| m == &member) {
+                        // Per instructions we can hardcode lat/long to "0"
+                        let mut coord = Vec::new();
+                        coord.push(RespValue::BulkString("0".to_string()));
+                        coord.push(RespValue::BulkString("0".to_string()));
+                        response_items.push(RespValue::Array(coord));
+                    } else {
+                        // Member not found -> null array
+                        response_items.push(RespValue::NullArray);
+                    }
+                }
+            }
+            _ => {
+                handler
+                    .write_value(RespValue::SimpleError(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                    ))
+                    .await?;
+                return Ok(());
+            }
+        }
+    } else {
+        // Key doesn't exist -> return null-array for each requested member
+        for _ in &items[2..] {
+            response_items.push(RespValue::NullArray);
+        }
+    }
+
+    handler.write_value(RespValue::Array(response_items)).await?;
+    Ok(())
 }
