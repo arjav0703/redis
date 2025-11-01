@@ -174,6 +174,39 @@ pub async fn zcard(
     Ok(())
 }
 
+pub async fn zscore(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    let key = items[1].as_string().unwrap();
+    let member = items[2].as_string().unwrap_or_default();
+
+    let db = db.lock().await;
+    if let Some(entry) = db.get(&key) {
+        match &entry.value {
+            crate::types::ValueType::SortedSet(vec) => {
+                if let Some((_, score)) = vec.iter().find(|(m, _)| m == &member) {
+                    handler
+                        .write_value(RespValue::BulkString(score.to_string()))
+                        .await?;
+                } else {
+                    handler.write_value(RespValue::NullBulkString).await?;
+                }
+            }
+            _ => {
+                handler
+                    .write_value(RespValue::SimpleString(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                    ))
+                    .await?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 async fn sort_set(vec: &mut [(String, f64)], ascending: bool) {
     if ascending {
         vec.sort_by(|a, b| {

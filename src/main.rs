@@ -305,6 +305,9 @@ async fn handle_client(
                         "ZCARD" if items.len() == 2 => {
                             sorted_set::zcard(&db, &items, &mut handler).await?;
                         }
+                        "ZSCORE" if items.len() == 3 => {
+                            sorted_set::zscore(&db, &items, &mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
