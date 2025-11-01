@@ -207,6 +207,39 @@ pub async fn zscore(
     Ok(())
 }
 
+pub async fn zrem(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    let key = items[1].as_string().unwrap();
+    let member = items[2].as_string().unwrap_or_default();
+
+    let mut db_lock = db.lock().await;
+    if let Some(entry) = db_lock.get_mut(&key) {
+        match &mut entry.value {
+            crate::types::ValueType::SortedSet(vec) => {
+                let original_len = vec.len();
+                vec.retain(|(m, _)| m != &member);
+                let removed_count = (original_len - vec.len()) as i64;
+                handler
+                    .write_value(RespValue::Integer(removed_count))
+                    .await?;
+            }
+            _ => {
+                handler
+                    .write_value(RespValue::SimpleString(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                    ))
+                    .await?;
+            }
+        }
+    } else {
+        handler.write_value(RespValue::Integer(0)).await?;
+    }
+
+    Ok(())
+}
 async fn sort_set(vec: &mut [(String, f64)], ascending: bool) {
     if ascending {
         vec.sort_by(|a, b| {

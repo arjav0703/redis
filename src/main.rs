@@ -308,6 +308,11 @@ async fn handle_client(
                         "ZSCORE" if items.len() == 3 => {
                             sorted_set::zscore(&db, &items, &mut handler).await?;
                         }
+                        "ZREM" if items.len() >= 3 => {
+                            sorted_set::zrem(&db, &items, &mut handler).await?;
+                            propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
+                                .await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
