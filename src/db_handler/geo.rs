@@ -160,7 +160,7 @@ pub async fn dist(
     let p1 = Coordinate::from_score(*scores[0]);
     let p2 = Coordinate::from_score(*scores[1]);
 
-    let dist = p1.dist_from(p2);
+    let dist = p1.dist_from(&p2);
 
     handler
         .write_value(RespValue::BulkString(dist.to_string()))
@@ -186,7 +186,7 @@ impl Coordinate {
 
     const EARTH_RADIUS: f64 = 6372797.560856;
 
-    pub fn dist_from(&self, point2: Coordinate) -> f64 {
+    pub fn dist_from(&self, point2: &Coordinate) -> f64 {
         // Haversine formula for great circle distance
         let lon1r = self.longitude.to_radians();
         let lon2r = point2.longitude.to_radians();
@@ -213,4 +213,50 @@ impl Coordinate {
 
         2.0 * Self::EARTH_RADIUS * (u * u).sqrt().asin()
     }
+}
+
+pub async fn search(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    // > GEOSEARCH places FROMLONLAT 2 48 BYRADIUS 100000 m
+
+    let key = items[1].as_string().unwrap();
+    let longitude: f64 = items[3].as_string().unwrap().parse()?;
+    let latitude: f64 = items[4].as_string().unwrap().parse()?;
+    let radius: f64 = items[6].as_string().unwrap().parse()?;
+
+    let search_coordinates = Coordinate {
+        longitude,
+        latitude,
+    };
+    let mut result: Vec<RespValue> = Vec::new();
+
+    let db = db.lock().await;
+    if let Some(entry) = db.get(&key) {
+        match &entry.value {
+            crate::types::ValueType::SortedSet(vec) => {
+                for location in vec {
+                    let (member, score) = location;
+                    let coordinate = Coordinate::from_score(*score);
+
+                    if coordinate.dist_from(&search_coordinates) < radius {
+                        result.push(RespValue::BulkString(member.clone()));
+                    }
+                }
+            }
+            _ => {
+                handler
+                    .write_value(RespValue::SimpleError(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                    ))
+                    .await?;
+                return Ok(());
+            }
+        }
+    }
+
+    handler.write_value(RespValue::Array(result)).await?;
+    Ok(())
 }

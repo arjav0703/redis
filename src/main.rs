@@ -324,6 +324,9 @@ async fn handle_client(
                         "GEODIST" if items.len() >= 3 => {
                             geo::dist(&db, &items, &mut handler).await?;
                         }
+                        "GEOSEARCH" if items.len() >= 5 => {
+                            geo::search(&db, &items, &mut handler).await?;
+                        }
                         _ => {
                             handler
                                 .write_value(RespValue::SimpleString("ERR unknown command".into()))
