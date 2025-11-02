@@ -26,6 +26,8 @@ This is a simple Redis server written in Rust 🦀.
 - `ZCARD`
 - `GEOADD`
 - `GEOPOS`
+- `GEODIST`
+- `GEOSEARCH`
 
 ### CLI args for the server:
 - `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
@@ -114,9 +116,11 @@ redis-cli ZCARD my_zset
 redis-cli ZREM my_zset "one"
 
 # Using geospatial commands
-redis-cli GEOADD my_geo 13.361389 38.115556 "Palermo"
-redis-cli GEOADD my_geo 15.087269 37.502669 "Catania"
-redis-cli GEOPOS my_geo "Palermo" "Catania"
+redis-cli GEOADD my_geo 13.361389 38.115556 "Palermo" #add to db
+redis-cli GEOADD my_geo 15.087269 37.502669 "Catania" #add to db
+redis-cli GEOPOS my_geo "Palermo" "Catania" #returns their coordinates
+redis-cli GEODIST my_geo "Palermo" "Catania" #returns distance between them
+redis-cli GEOSEARCH places FROMLONLAT 2 48 BYRADIUS 1000000 m #search for places within the specified radius from the specified coordinates
 ```
 ### Features
 - In-memory key-value store
