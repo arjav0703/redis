@@ -1,3 +1,5 @@
+use crate::db_handler::geo::decode::decode;
+
 use super::*;
 mod decode;
 mod encode;
@@ -116,6 +118,99 @@ pub async fn pos(
         }
     }
 
-    handler.write_value(RespValue::Array(response_items)).await?;
+    handler
+        .write_value(RespValue::Array(response_items))
+        .await?;
     Ok(())
+}
+
+pub async fn dist(
+    db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+    items: &[RespValue],
+    handler: &mut RespHandler,
+) -> Result<()> {
+    let key = items[1].as_string().unwrap();
+    let point1 = items[2].as_string().unwrap();
+    let point2 = items[3].as_string().unwrap();
+
+    let points = vec![point1, point2];
+    let mut scores = Vec::new();
+
+    let db = db.lock().await;
+    if let Some(entry) = db.get(&key) {
+        match &entry.value {
+            crate::types::ValueType::SortedSet(vec) => {
+                for point in points {
+                    if let Some((_member, score)) = vec.iter().find(|(m, _)| m == &point) {
+                        scores.push(score);
+                    }
+                }
+            }
+            _ => {
+                handler
+                    .write_value(RespValue::SimpleError(
+                        "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
+                    ))
+                    .await?;
+                return Ok(());
+            }
+        }
+    }
+
+    let p1 = Coordinate::from_score(*scores[0]);
+    let p2 = Coordinate::from_score(*scores[1]);
+
+    let dist = p1.dist_from(p2);
+
+    handler
+        .write_value(RespValue::BulkString(dist.to_string()))
+        .await?;
+
+    Ok(())
+}
+
+struct Coordinate {
+    latitude: f64,
+    longitude: f64,
+}
+
+impl Coordinate {
+    pub fn from_score(score: f64) -> Coordinate {
+        let (latitude, longitude) = decode(score as u64);
+
+        Coordinate {
+            latitude,
+            longitude,
+        }
+    }
+
+    const EARTH_RADIUS: f64 = 6372797.560856;
+
+    pub fn dist_from(&self, point2: Coordinate) -> f64 {
+        // Haversine formula for great circle distance
+        let lon1r = self.longitude.to_radians();
+        let lon2r = point2.longitude.to_radians();
+        let v = ((lon2r - lon1r) / 2.0).sin();
+
+        // If v == 0, longitudes are practically the same
+        if v == 0.0 {
+            return self.get_lat_distance(point2.latitude);
+        }
+
+        let lat1r = self.latitude.to_radians();
+        let lat2r = point2.latitude.to_radians();
+        let u = ((lat2r - lat1r) / 2.0).sin();
+        let a = u * u + lat1r.cos() * lat2r.cos() * v * v;
+
+        2.0 * Self::EARTH_RADIUS * a.sqrt().asin()
+    }
+
+    fn get_lat_distance(&self, lat2d: f64) -> f64 {
+        // Calculate distance when longitudes are the same
+        let lat1r = self.latitude.to_radians();
+        let lat2r = lat2d.to_radians();
+        let u = ((lat2r - lat1r) / 2.0).sin();
+
+        2.0 * Self::EARTH_RADIUS * (u * u).sqrt().asin()
+    }
 }
