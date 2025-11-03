@@ -9,13 +9,16 @@ pub async fn handle_multi(handler: &mut RespHandler, in_transaction: &mut bool) 
     Ok(())
 }
 
-pub async fn handle_exec(handler: &mut RespHandler, in_transaction: &bool) -> Result<()> {
-    if !in_transaction {
+pub async fn handle_exec(handler: &mut RespHandler, in_transaction: &mut bool) -> Result<()> {
+    let _v = in_transaction.clone();
+    if !_v {
         handler
             .write_value(RespValue::SimpleError("ERR EXEC without MULTI".to_string()))
             .await?;
         return Ok(());
     }
+
+    *in_transaction = false;
 
     handler.write_value(RespValue::Array(Vec::new())).await?;
     Ok(())

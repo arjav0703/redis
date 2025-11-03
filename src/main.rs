@@ -337,7 +337,7 @@ async fn handle_client(
                             transactions::handle_multi(&mut handler, &mut in_transaction).await?;
                         }
                         "EXEC" => {
-                            transactions::handle_exec(&mut handler, &in_transaction).await?;
+                            transactions::handle_exec(&mut handler, &mut in_transaction).await?;
                         }
                         _ => {
                             handler
