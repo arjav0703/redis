@@ -55,8 +55,12 @@ pub async fn exec(
 
     for cmd in queued_commands.iter() {
         if let RespValue::Array(items) = cmd {
-            let response = execute_command(items, db, replicas).await?;
-            responses.push(response);
+            match execute_command(items, db, replicas).await {
+                Ok(response) => responses.push(response),
+                Err(e) => {
+                    responses.push(RespValue::SimpleError(format!("ERR {}", e)));
+                }
+            }
         }
     }
 

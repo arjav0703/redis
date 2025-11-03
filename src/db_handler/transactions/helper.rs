@@ -73,12 +73,14 @@ async fn execute_incr(
 
     let new_value = if let Some(entry) = db_guard.get(&key) {
         match &entry.value {
-            crate::types::ValueType::String(s) => {
-                let num = s
-                    .parse::<i64>()
-                    .map_err(|_| anyhow::anyhow!("ERR value is not an integer or out of range"))?;
-                num + 1
-            }
+            crate::types::ValueType::String(s) => match s.parse::<i64>() {
+                Ok(num) => num + 1,
+                Err(_) => {
+                    return Ok(RespValue::SimpleError(
+                        "ERR value is not an integer or out of range".to_string(),
+                    ));
+                }
+            },
             _ => {
                 return Ok(RespValue::SimpleError(
                     "ERR value is not an integer or out of range".to_string(),
