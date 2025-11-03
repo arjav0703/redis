@@ -22,7 +22,7 @@ pub async fn set_key_silent(
 }
 
 /// Internal implementation of set_key logic without response handling
-async fn set_key_internal(
+pub async fn set_key_internal(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     items: &[RespValue],
 ) -> Result<()> {
