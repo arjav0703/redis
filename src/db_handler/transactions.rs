@@ -1,6 +1,13 @@
 use super::*;
 use std::result::Result::Ok;
 
+pub async fn handle_multi(handler: &mut RespHandler) -> Result<()> {
+    handler
+        .write_value(RespValue::SimpleString("OK".to_string()))
+        .await?;
+    Ok(())
+}
+
 pub async fn incr_key(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     items: &[RespValue],
