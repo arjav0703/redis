@@ -32,6 +32,15 @@ pub async fn incr_key(
                     .await?;
             }
         }
+    } else {
+        db.insert(
+            key,
+            KeyWithExpiry {
+                value: crate::types::ValueType::String("1".to_string()),
+                expiry: None,
+            },
+        );
+        handler.write_value(RespValue::Integer(1)).await?;
     }
     Ok(())
 }
