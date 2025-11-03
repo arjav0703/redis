@@ -1,4 +1,5 @@
 use super::*;
+use std::result::Result::Ok;
 
 pub async fn incr_key(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
@@ -11,7 +12,16 @@ pub async fn incr_key(
     if let Some(entry) = db.get(&key) {
         match &entry.value {
             crate::types::ValueType::String(s) => {
-                let num = s.parse::<i64>().unwrap_or(0);
+                if s.parse::<i64>().is_err() {
+                    handler
+                        .write_value(RespValue::SimpleError(
+                            "ERR value is not an integer or out of range".to_string(),
+                        ))
+                        .await?;
+                    return Ok(());
+                };
+
+                let num = s.parse::<i64>().unwrap();
                 let new_value = num + 1;
                 let expiry = entry.expiry;
                 db.insert(
