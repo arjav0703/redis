@@ -152,7 +152,7 @@ async fn handle_client(
                         }
                     }
 
-
+                    // Queue commands if in a transaction (except MULTI, EXEC, DISCARD)
                     if in_transaction && !matches!(cmd_upper.as_str(), "MULTI" | "EXEC" | "DISCARD") {
                         queued_commands.push(RespValue::Array(items.clone()));
                         handler.write_value(RespValue::SimpleString("QUEUED".to_string())).await?;
@@ -348,7 +348,7 @@ async fn handle_client(
                         "EXEC" => {
                             transactions::exec(&mut handler, &mut in_transaction, &mut queued_commands, &db, &replicas).await?;
                         }
-                        "DISARD" => {
+                        "DISCARD" => {
                             transactions::discard(&mut handler, &mut in_transaction, &mut queued_commands).await?;
                         }
                         _ => {
