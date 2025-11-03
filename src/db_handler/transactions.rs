@@ -1,10 +1,23 @@
 use super::*;
 use std::result::Result::Ok;
 
-pub async fn handle_multi(handler: &mut RespHandler) -> Result<()> {
+pub async fn handle_multi(handler: &mut RespHandler, in_transaction: &mut bool) -> Result<()> {
+    *in_transaction = true;
     handler
         .write_value(RespValue::SimpleString("OK".to_string()))
         .await?;
+    Ok(())
+}
+
+pub async fn handle_exec(handler: &mut RespHandler, in_transaction: &bool) -> Result<()> {
+    if !in_transaction {
+        handler
+            .write_value(RespValue::SimpleError("ERR EXEC without MULTI".to_string()))
+            .await?;
+        return Ok(());
+    }
+
+    handler.write_value(RespValue::Array(Vec::new())).await?;
     Ok(())
 }
 

@@ -110,6 +110,7 @@ async fn handle_client(
     let mut handler = RespHandler::new(stream);
     let mut subscribed_channels = std::collections::HashSet::<String>::new();
     let mut is_subscribed: bool;
+    let mut in_transaction: bool = false;
 
     // channel for receiving pub/sub messages
     let (msg_tx, mut msg_rx) = mpsc::channel::<(String, String)>(100);
@@ -333,7 +334,10 @@ async fn handle_client(
                                 .await?;
                         }
                         "MULTI" => {
-                            transactions::handle_multi(&mut handler).await?;
+                            transactions::handle_multi(&mut handler, &mut in_transaction).await?;
+                        }
+                        "EXEC" => {
+                            transactions::handle_exec(&mut handler, &in_transaction).await?;
                         }
                         _ => {
                             handler
