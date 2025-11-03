@@ -149,10 +149,15 @@ redis-cli DISCARD
 - Load previous state from RDB file
 - Set keys with expiry
 - Works with the official redis-cli
-- Replication support (work in progress)
+- Replication support (both as master and replica)
+- Channel-based pub/sub
+- Transactions using MULTI/EXEC
+- Geospatial data support
+- Sorted sets
+- Streams
 
 
-### Replication Support (work in progress)
+### Replication
 - The server can act as a replica and sync data from a master Redis server. To start the server as a replica, use the following command:
 1. Run a master redis server:
 ```bash
