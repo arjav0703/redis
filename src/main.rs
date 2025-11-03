@@ -17,7 +17,7 @@ use types::{
 mod db_handler;
 use db_handler::{
     del_key, geo, get_key, handle_config, handle_key_search, handle_type, list_ops, pub_sub,
-    replica_ops, set_key::*, sorted_set, stream_ops,
+    replica_ops, set_key::*, sorted_set, stream_ops, transactions,
 };
 mod file_handler;
 mod replica;
@@ -326,6 +326,11 @@ async fn handle_client(
                         }
                         "GEOSEARCH" if items.len() >= 5 => {
                             geo::search(&db, &items, &mut handler).await?;
+                        }
+                        "INCR" if items.len() == 2 => {
+                            transactions::incr_key(&db, &items, &mut handler).await?;
+                            propogate_to_replicas(&RespValue::Array(items.clone()), &replicas)
+                                .await?;
                         }
                         _ => {
                             handler

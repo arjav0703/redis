@@ -16,6 +16,7 @@ pub mod replica_ops;
 pub mod set_key;
 pub mod sorted_set;
 pub mod stream_ops;
+pub mod transactions;
 
 /// Intended to handle the ping command. it the string provided after the ping command or defaults
 /// to PONG if nothing ilse is provided
