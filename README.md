@@ -31,6 +31,7 @@ This is a simple Redis server written in Rust 🦀.
 - `INCR`
 - `MULTI`
 - `EXEC`
+- `DISARD`
 
 ### CLI args for the server:
 - `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
@@ -136,6 +137,12 @@ redis-cli SET key1 value1
 redis-cli GET key1
 redis-cli SET key2 value2
 redis-cli EXEC
+
+# Using DISCARD to cancel a transaction
+redis-cli MULTI
+redis-cli SET key3 value3
+redis-cli DISCARD
+
 ```
 ### Features
 - In-memory key-value store
