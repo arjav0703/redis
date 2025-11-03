@@ -28,6 +28,9 @@ This is a simple Redis server written in Rust 🦀.
 - `GEOPOS`
 - `GEODIST`
 - `GEOSEARCH`
+- `INCR`
+- `MULTI`
+- `EXEC`
 
 ### CLI args for the server:
 - `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
@@ -121,6 +124,18 @@ redis-cli GEOADD my_geo 15.087269 37.502669 "Catania" #add to db
 redis-cli GEOPOS my_geo "Palermo" "Catania" #returns their coordinates
 redis-cli GEODIST my_geo "Palermo" "Catania" #returns distance between them
 redis-cli GEOSEARCH places FROMLONLAT 2 48 BYRADIUS 1000000 m #search for places within the specified radius from the specified coordinates
+
+# Using INCR command
+redis-cli SET counter 10
+redis-cli INCR counter
+redis-cli GET counter
+
+# Using MULTI and EXEC commands for transactions
+redis-cli MULTI
+redis-cli SET key1 value1
+redis-cli GET key1
+redis-cli SET key2 value2
+redis-cli EXEC
 ```
 ### Features
 - In-memory key-value store
