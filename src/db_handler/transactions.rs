@@ -10,8 +10,7 @@ pub async fn handle_multi(handler: &mut RespHandler, in_transaction: &mut bool) 
 }
 
 pub async fn handle_exec(handler: &mut RespHandler, in_transaction: &mut bool) -> Result<()> {
-    let _v = in_transaction.clone();
-    if !_v {
+    if !*in_transaction {
         handler
             .write_value(RespValue::SimpleError("ERR EXEC without MULTI".to_string()))
             .await?;
