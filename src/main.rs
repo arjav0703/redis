@@ -151,14 +151,14 @@ async fn handle_client(
                             continue;
                         }
                     }
-                    
+
 
                     if in_transaction && !matches!(cmd_upper.as_str(), "MULTI" | "EXEC" | "DISCARD") {
                         queued_commands.push(RespValue::Array(items.clone()));
                         handler.write_value(RespValue::SimpleString("QUEUED".to_string())).await?;
                         continue;
                     }
-                    
+
                     match cmd_upper.as_str() {
                         "PING" => {
                             db_handler::send_pong(&mut handler, &items, is_subscribed).await?
@@ -343,10 +343,13 @@ async fn handle_client(
                                 .await?;
                         }
                         "MULTI" => {
-                            transactions::handle_multi(&mut handler, &mut in_transaction).await?;
+                            transactions::multi(&mut handler, &mut in_transaction).await?;
                         }
                         "EXEC" => {
-                            transactions::handle_exec(&mut handler, &mut in_transaction, &mut queued_commands, &db, &replicas).await?;
+                            transactions::exec(&mut handler, &mut in_transaction, &mut queued_commands, &db, &replicas).await?;
+                        }
+                        "DISARD" => {
+                            transactions::discard(&mut handler, &mut in_transaction, &mut queued_commands).await?;
                         }
                         _ => {
                             handler

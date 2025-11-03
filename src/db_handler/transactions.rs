@@ -4,7 +4,7 @@ use std::result::Result::Ok;
 mod helper;
 use helper::execute_command;
 
-pub async fn handle_multi(handler: &mut RespHandler, in_transaction: &mut bool) -> Result<()> {
+pub async fn multi(handler: &mut RespHandler, in_transaction: &mut bool) -> Result<()> {
     *in_transaction = true;
     handler
         .write_value(RespValue::SimpleString("OK".to_string()))
@@ -12,7 +12,30 @@ pub async fn handle_multi(handler: &mut RespHandler, in_transaction: &mut bool) 
     Ok(())
 }
 
-pub async fn handle_exec(
+pub async fn discard(
+    handler: &mut RespHandler,
+    in_transaction: &mut bool,
+    queued_commands: &mut Vec<RespValue>,
+) -> Result<()> {
+    if !*in_transaction {
+        handler
+            .write_value(RespValue::SimpleError(
+                "ERR DISCARD without MULTI".to_string(),
+            ))
+            .await?;
+        return Ok(());
+    }
+
+    *in_transaction = false;
+    queued_commands.clear();
+    handler
+        .write_value(RespValue::SimpleString("OK".to_string()))
+        .await?;
+
+    Ok(())
+}
+
+pub async fn exec(
     handler: &mut RespHandler,
     in_transaction: &mut bool,
     queued_commands: &mut Vec<RespValue>,
