@@ -9,7 +9,11 @@ pub async fn handle_multi(handler: &mut RespHandler, in_transaction: &mut bool) 
     Ok(())
 }
 
-pub async fn handle_exec(handler: &mut RespHandler, in_transaction: &mut bool) -> Result<()> {
+pub async fn handle_exec(
+    handler: &mut RespHandler,
+    in_transaction: &mut bool,
+    queued_commands: &mut Vec<RespValue>,
+) -> Result<()> {
     if !*in_transaction {
         handler
             .write_value(RespValue::SimpleError("ERR EXEC without MULTI".to_string()))
@@ -19,6 +23,7 @@ pub async fn handle_exec(handler: &mut RespHandler, in_transaction: &mut bool) -
 
     *in_transaction = false;
 
+    queued_commands.clear();
     handler.write_value(RespValue::Array(Vec::new())).await?;
     Ok(())
 }
