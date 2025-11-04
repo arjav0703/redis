@@ -3,7 +3,7 @@ name = "redis"
 description = "An implementation of the redis server in rust"
 license = "MIT"
 responsitory = "https://github.com/arjav0703/redis"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Arjav Jain <arjavjain0703@gmail.com>"]
 edition = "2021"
 
