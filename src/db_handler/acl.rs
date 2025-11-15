@@ -20,6 +20,8 @@ pub async fn handle_acl_command(handler: &mut RespHandler, items: &[RespValue]) 
                     .write_value(RespValue::Array(vec![
                         RespValue::BulkString("flags".into()),
                         RespValue::Array(vec![RespValue::BulkString("nopass".into())]),
+                        RespValue::BulkString("passwords".into()),
+                        RespValue::Array(vec![]),
                     ]))
                     .await?;
             } else {
