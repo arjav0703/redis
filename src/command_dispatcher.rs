@@ -204,6 +204,9 @@ pub async fn dispatch_command(
         "DISCARD" => {
             transactions::discard(&mut state.handler, &mut state.in_transaction, &mut state.queued_commands).await?;
         }
+        "ACL" => {
+            crate::db_handler::acl::handle_acl_command(&mut state.handler, items).await?;
+        }
         
         _ => {
             state.handler.write_value(RespValue::SimpleString("ERR unknown command".into())).await?;
