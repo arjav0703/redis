@@ -19,11 +19,7 @@ pub async fn handle_acl_command(handler: &mut RespHandler, items: &[RespValue]) 
                 handler
                     .write_value(RespValue::Array(vec![
                         RespValue::BulkString("flags".into()),
-                        RespValue::Array(vec![
-                            RespValue::BulkString("on".into()),
-                            RespValue::BulkString("allkeys".into()),
-                            RespValue::BulkString("allcommands".into()),
-                        ]),
+                        RespValue::Array(vec![RespValue::BulkString("nopass".into())]),
                     ]))
                     .await?;
             } else {
