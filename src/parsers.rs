@@ -1,5 +1,5 @@
 use crate::types::resp::parse_msg;
-use crate::RespValue;
+use crate::types::resp::RespValue;
 use anyhow::{anyhow, Result};
 
 /// Function used to parse a simple string acc to the RESP conventions
