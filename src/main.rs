@@ -10,12 +10,12 @@ mod types;
 use cli::set_env_vars;
 use types::{replica::ReplicaConnection, KeyWithExpiry};
 
+mod client_handler;
+mod command_dispatcher;
+mod command_processor;
 mod db_handler;
 mod file_handler;
 mod replica;
-mod client_handler;
-mod command_processor;
-mod command_dispatcher;
 mod replication;
 
 use client_handler::handle_client;
@@ -27,6 +27,7 @@ pub struct BlockedClient {
 }
 
 pub type BlockedClients = Arc<tokio::sync::Mutex<Vec<BlockedClient>>>;
+pub type Users = Arc<tokio::sync::Mutex<HashMap<String, Option<String>>>>;
 
 // Maps channel_name -> list of senders that can receive messages
 pub type ChannelSubscribers =
@@ -70,6 +71,12 @@ async fn main() -> Result<()> {
         Arc::new(tokio::sync::Mutex::new(HashMap::new()));
     let channel_subscribers: ChannelSubscribers = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 
+    let users: Users = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+    {
+        let mut users_lock = users.lock().await;
+        users_lock.insert("default".to_string(), None);
+    }
+
     loop {
         let (stream, _) = listener.accept().await?;
 
@@ -78,6 +85,7 @@ async fn main() -> Result<()> {
         let blocked_clients = blocked_clients.clone();
         let channels_map = channels_map.clone();
         let channel_subscribers = channel_subscribers.clone();
+        let users = users.clone();
 
         tokio::spawn(async move {
             if let Err(e) = handle_client(
@@ -87,6 +95,7 @@ async fn main() -> Result<()> {
                 blocked_clients,
                 channels_map,
                 channel_subscribers,
+                users,
             )
             .await
             {

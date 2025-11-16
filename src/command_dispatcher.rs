@@ -7,7 +7,10 @@ use crate::db_handler::{
     replica_ops, set_key::*, sorted_set, stream_ops, transactions,
 };
 use crate::replication::execute_and_replicate;
-use crate::types::{replica::ReplicaConnection, resp::{RespHandler, RespValue}};
+use crate::types::{
+    replica::ReplicaConnection,
+    resp::{RespHandler, RespValue},
+};
 
 /// Dispatch command to the appropriate handler function
 pub async fn dispatch_command(
@@ -25,14 +28,15 @@ pub async fn dispatch_command(
         "ECHO" if items.len() == 2 && !is_subscribed => {
             state.handler.write_value(items[1].clone()).await?;
         }
-        
+
         // Key-value operations
         "SET" if items.len() >= 3 => {
             execute_and_replicate(
                 || set_key(&resources.db, items, &mut state.handler),
                 items,
                 &resources.replicas,
-            ).await?;
+            )
+            .await?;
         }
         "GET" if items.len() == 2 => {
             get_key(&resources.db, items, &mut state.handler).await?;
@@ -42,19 +46,21 @@ pub async fn dispatch_command(
                 || del_key(&resources.db, items, &mut state.handler),
                 items,
                 &resources.replicas,
-            ).await?;
+            )
+            .await?;
         }
         "INCR" if items.len() == 2 => {
             execute_and_replicate(
                 || transactions::incr_key(&resources.db, items, &mut state.handler),
                 items,
                 &resources.replicas,
-            ).await?;
+            )
+            .await?;
         }
         "TYPE" if items.len() == 2 => {
             handle_type(&resources.db, items, &mut state.handler).await?;
         }
-        
+
         // Configuration and metadata
         "CONFIG" => {
             handle_config(items, &mut state.handler).await?;
@@ -66,7 +72,7 @@ pub async fn dispatch_command(
         "INFO" if items.len() == 2 => {
             replica_ops::handle_info(&mut state.handler).await?;
         }
-        
+
         // Replication commands
         "REPLCONF" => {
             handle_replconf_command(&mut state.handler, items).await?;
@@ -74,7 +80,7 @@ pub async fn dispatch_command(
         "WAIT" if items.len() == 3 => {
             handle_wait_command(&mut state.handler, items, &resources.replicas).await?;
         }
-        
+
         // Stream operations
         "XADD" if items.len() >= 5 => {
             stream_ops::handle_xadd(&resources.db, items, &mut state.handler).await?;
@@ -85,21 +91,39 @@ pub async fn dispatch_command(
         "XREAD" if items.len() >= 4 => {
             stream_ops::handle_xread(&resources.db, items, &mut state.handler).await?;
         }
-        
+
         // List operations
         "RPUSH" if items.len() >= 3 => {
             execute_and_replicate(
-                || list_ops::handle_push(&resources.db, items, &mut state.handler, false, &resources.blocked_clients),
+                || {
+                    list_ops::handle_push(
+                        &resources.db,
+                        items,
+                        &mut state.handler,
+                        false,
+                        &resources.blocked_clients,
+                    )
+                },
                 items,
                 &resources.replicas,
-            ).await?;
+            )
+            .await?;
         }
         "LPUSH" if items.len() >= 3 => {
             execute_and_replicate(
-                || list_ops::handle_push(&resources.db, items, &mut state.handler, true, &resources.blocked_clients),
+                || {
+                    list_ops::handle_push(
+                        &resources.db,
+                        items,
+                        &mut state.handler,
+                        true,
+                        &resources.blocked_clients,
+                    )
+                },
                 items,
                 &resources.replicas,
-            ).await?;
+            )
+            .await?;
         }
         "LRANGE" if items.len() == 4 => {
             list_ops::handle_lrange(&resources.db, items, &mut state.handler).await?;
@@ -112,15 +136,28 @@ pub async fn dispatch_command(
                 || list_ops::handle_lpop(&resources.db, items, &mut state.handler),
                 items,
                 &resources.replicas,
-            ).await?;
+            )
+            .await?;
         }
         "BLPOP" if items.len() >= 3 => {
-            list_ops::handle_blpop(&resources.db, items, &mut state.handler, &resources.blocked_clients).await?;
+            list_ops::handle_blpop(
+                &resources.db,
+                items,
+                &mut state.handler,
+                &resources.blocked_clients,
+            )
+            .await?;
         }
-        
+
         // Pub/Sub operations
         "PUBLISH" if items.len() >= 3 => {
-            pub_sub::handle_publish(items, &resources.channels_map, &resources.channel_subscribers, &mut state.handler).await?;
+            pub_sub::handle_publish(
+                items,
+                &resources.channels_map,
+                &resources.channel_subscribers,
+                &mut state.handler,
+            )
+            .await?;
         }
         "SUBSCRIBE" if items.len() >= 2 => {
             pub_sub::handle_subscribe(
@@ -130,7 +167,8 @@ pub async fn dispatch_command(
                 &resources.channels_map,
                 &resources.channel_subscribers,
                 state.msg_tx.clone(),
-            ).await?;
+            )
+            .await?;
         }
         "UNSUBSCRIBE" if items.len() >= 2 => {
             pub_sub::handle_unsubscribe(
@@ -139,16 +177,18 @@ pub async fn dispatch_command(
                 &mut state.subscribed_channels,
                 &resources.channels_map,
                 &resources.channel_subscribers,
-            ).await?;
+            )
+            .await?;
         }
-        
+
         // Sorted set operations
         "ZADD" if items.len() >= 4 => {
             execute_and_replicate(
                 || sorted_set::zadd(&resources.db, items, &mut state.handler),
                 items,
                 &resources.replicas,
-            ).await?;
+            )
+            .await?;
         }
         "ZRANK" if items.len() >= 3 => {
             sorted_set::zrank(&resources.db, items, &mut state.handler).await?;
@@ -167,16 +207,18 @@ pub async fn dispatch_command(
                 || sorted_set::zrem(&resources.db, items, &mut state.handler),
                 items,
                 &resources.replicas,
-            ).await?;
+            )
+            .await?;
         }
-        
+
         // Geo operations
         "GEOADD" if items.len() >= 5 => {
             execute_and_replicate(
                 || geo::add(&resources.db, items, &mut state.handler),
                 items,
                 &resources.replicas,
-            ).await?;
+            )
+            .await?;
         }
         "GEOPOS" if items.len() >= 3 => {
             geo::pos(&resources.db, items, &mut state.handler).await?;
@@ -187,7 +229,7 @@ pub async fn dispatch_command(
         "GEOSEARCH" if items.len() >= 5 => {
             geo::search(&resources.db, items, &mut state.handler).await?;
         }
-        
+
         // Transaction operations
         "MULTI" => {
             transactions::multi(&mut state.handler, &mut state.in_transaction).await?;
@@ -199,17 +241,27 @@ pub async fn dispatch_command(
                 &mut state.queued_commands,
                 &resources.db,
                 &resources.replicas,
-            ).await?;
+            )
+            .await?;
         }
         "DISCARD" => {
-            transactions::discard(&mut state.handler, &mut state.in_transaction, &mut state.queued_commands).await?;
+            transactions::discard(
+                &mut state.handler,
+                &mut state.in_transaction,
+                &mut state.queued_commands,
+            )
+            .await?;
         }
         "ACL" => {
-            crate::db_handler::acl::handle_acl_command(&mut state.handler, items).await?;
+            crate::db_handler::acl::handle_acl_command(&mut state.handler, items, &resources.users)
+                .await?;
         }
-        
+
         _ => {
-            state.handler.write_value(RespValue::SimpleString("ERR unknown command".into())).await?;
+            state
+                .handler
+                .write_value(RespValue::SimpleString("ERR unknown command".into()))
+                .await?;
         }
     }
 
@@ -217,10 +269,7 @@ pub async fn dispatch_command(
 }
 
 /// Handle REPLCONF command
-async fn handle_replconf_command(
-    handler: &mut RespHandler,
-    items: &[RespValue],
-) -> Result<()> {
+async fn handle_replconf_command(handler: &mut RespHandler, items: &[RespValue]) -> Result<()> {
     let slave_ip = handler.get_peer_addr().unwrap();
     dbg!(&slave_ip);
     std::env::set_var("slave_ip", slave_ip.to_string());

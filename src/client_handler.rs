@@ -4,10 +4,13 @@ use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
-use crate::types::{
-    replica::ReplicaConnection,
-    resp::{RespHandler, RespValue},
-    KeyWithExpiry,
+use crate::{
+    types::{
+        replica::ReplicaConnection,
+        resp::{RespHandler, RespValue},
+        KeyWithExpiry,
+    },
+    Users,
 };
 use crate::{BlockedClients, ChannelSubscribers};
 
@@ -46,6 +49,7 @@ pub struct SharedResources {
     pub blocked_clients: BlockedClients,
     pub channels_map: Arc<tokio::sync::Mutex<HashMap<String, usize>>>,
     pub channel_subscribers: ChannelSubscribers,
+    pub users: Users,
 }
 
 /// Function to handle client connections
@@ -56,6 +60,7 @@ pub async fn handle_client(
     blocked_clients: BlockedClients,
     channels_map: Arc<tokio::sync::Mutex<HashMap<String, usize>>>,
     channel_subscribers: ChannelSubscribers,
+    users: Users,
 ) -> Result<()> {
     let mut state = ClientState::new(stream);
     let resources = SharedResources {
@@ -64,6 +69,7 @@ pub async fn handle_client(
         blocked_clients,
         channels_map,
         channel_subscribers,
+        users,
     };
 
     loop {
