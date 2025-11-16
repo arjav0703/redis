@@ -2,6 +2,7 @@ use crate::types::{
     resp::{RespHandler, RespValue},
     KeyWithExpiry,
 };
+use crate::Users;
 use anyhow::{Ok, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -9,6 +10,8 @@ use std::sync::Arc;
 use std::env;
 use std::time::{Duration, Instant};
 use tokio::time;
+pub mod acl;
+pub mod auth;
 pub mod geo;
 pub mod list_ops;
 pub mod pub_sub;
@@ -17,7 +20,6 @@ pub mod set_key;
 pub mod sorted_set;
 pub mod stream_ops;
 pub mod transactions;
-pub mod acl;
 
 /// Intended to handle the ping command. it the string provided after the ping command or defaults
 /// to PONG if nothing ilse is provided

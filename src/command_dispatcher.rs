@@ -256,6 +256,10 @@ pub async fn dispatch_command(
             crate::db_handler::acl::handle_acl_command(&mut state.handler, items, &resources.users)
                 .await?;
         }
+        "AUTH" => {
+            crate::db_handler::auth::handle_auth(&mut state.handler, items, &resources.users)
+                .await?;
+        }
 
         _ => {
             state

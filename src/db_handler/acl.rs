@@ -1,5 +1,4 @@
 use super::*;
-use crate::Users;
 use sha2::Digest;
 
 pub async fn handle_acl_command(
