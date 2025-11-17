@@ -32,6 +32,8 @@ This is a simple Redis server written in Rust 🦀.
 - `MULTI`
 - `EXEC`
 - `DISARD`
+- `ACL`
+- `AUTH`
 
 ### CLI args for the server:
 - `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
@@ -142,6 +144,20 @@ redis-cli EXEC
 redis-cli MULTI
 redis-cli SET key3 value3
 redis-cli DISCARD
+
+# Authentication
+
+#CLIENT 1
+redis-cli
+>> ACL WHOAMI
+# default
+>> ACL SETUSER default >mypass
+
+#CLIENT 2
+redis-cli
+>> AUTH default mypass
+#OK 
+# authentication successful
 
 ```
 ### Features
