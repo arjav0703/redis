@@ -171,6 +171,7 @@ redis-cli
 - Geospatial data support
 - Sorted sets
 - Streams
+- Authentication
 
 
 ### Replication
