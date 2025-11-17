@@ -26,7 +26,9 @@ pub async fn handle_auth(
     }
 
     handler
-        .write_value(RespValue::SimpleError("WRONGPASS wrong password".to_string()))
+        .write_value(RespValue::SimpleError(
+            "WRONGPASS wrong password".to_string(),
+        ))
         .await?;
     Ok(())
 }

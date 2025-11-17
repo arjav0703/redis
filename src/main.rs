@@ -1,6 +1,6 @@
 use anyhow::Result;
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::{collections::HashMap, default};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 pub mod cli;

@@ -22,7 +22,6 @@ pub async fn dispatch_command(
     let is_subscribed = state.is_subscribed();
 
     let authstate = resources.authstate.lock().await;
-    // Require authentication for all commands except AUTH.
     if !authstate.is_authenticated && cmd != "AUTH" {
         state
             .handler

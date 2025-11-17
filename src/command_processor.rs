@@ -2,7 +2,6 @@ use anyhow::Result;
 
 use crate::client_handler::{ClientState, SharedResources};
 use crate::command_dispatcher::dispatch_command;
-use crate::db_handler::auth;
 use crate::types::resp::RespValue;
 
 /// Process a single command from the client
