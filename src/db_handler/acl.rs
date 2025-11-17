@@ -79,3 +79,12 @@ pub async fn handle_acl_command(
     }
     Ok(())
 }
+
+pub async fn check_nopass_user(users: &Users, username: &str) -> bool {
+    let users = users.lock().await;
+    if let Some(pass_opt) = users.get(username) {
+        pass_opt.is_none()
+    } else {
+        false
+    }
+}

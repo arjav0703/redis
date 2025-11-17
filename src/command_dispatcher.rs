@@ -21,6 +21,18 @@ pub async fn dispatch_command(
 ) -> Result<()> {
     let is_subscribed = state.is_subscribed();
 
+    let authstate = resources.authstate.lock().await;
+    // Require authentication for all commands except AUTH.
+    if !authstate.is_authenticated && cmd != "AUTH" {
+        state
+            .handler
+            .write_value(RespValue::SimpleError(
+                "NOAUTH Authentication required.".to_string(),
+            ))
+            .await?;
+        return Ok(());
+    }
+
     match cmd {
         "PING" => {
             crate::db_handler::send_pong(&mut state.handler, items, is_subscribed).await?;
@@ -257,8 +269,13 @@ pub async fn dispatch_command(
                 .await?;
         }
         "AUTH" => {
-            crate::db_handler::auth::handle_auth(&mut state.handler, items, &resources.users)
-                .await?;
+            crate::db_handler::auth::handle_auth(
+                &mut state.handler,
+                items,
+                &resources.users,
+                &resources.authstate,
+            )
+            .await?;
         }
 
         _ => {

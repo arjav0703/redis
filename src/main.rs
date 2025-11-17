@@ -1,6 +1,6 @@
 use anyhow::Result;
-use std::collections::HashMap;
 use std::sync::Arc;
+use std::{collections::HashMap, default};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 pub mod cli;
@@ -19,6 +19,8 @@ mod replica;
 mod replication;
 
 use client_handler::handle_client;
+
+use crate::{client_handler::AuthState, db_handler::acl};
 
 #[derive(Debug)]
 pub struct BlockedClient {
@@ -86,7 +88,13 @@ async fn main() -> Result<()> {
         let channels_map = channels_map.clone();
         let channel_subscribers = channel_subscribers.clone();
         let users = users.clone();
-
+        // Create a per-connection AuthState so existing connections keep their state
+        // when ACL SETUSER changes the default user's password.
+        let default_user_nopass = acl::check_nopass_user(&users, "default").await;
+        let authstate = Arc::new(tokio::sync::Mutex::new(AuthState {
+            is_authenticated: default_user_nopass,
+            username: "default".to_string(),
+        }));
         tokio::spawn(async move {
             if let Err(e) = handle_client(
                 stream,
@@ -96,6 +104,7 @@ async fn main() -> Result<()> {
                 channels_map,
                 channel_subscribers,
                 users,
+                authstate,
             )
             .await
             {

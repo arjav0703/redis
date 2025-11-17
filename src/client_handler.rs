@@ -50,6 +50,13 @@ pub struct SharedResources {
     pub channels_map: Arc<tokio::sync::Mutex<HashMap<String, usize>>>,
     pub channel_subscribers: ChannelSubscribers,
     pub users: Users,
+    pub authstate: Arc<tokio::sync::Mutex<AuthState>>,
+}
+
+#[derive(Debug)]
+pub struct AuthState {
+    pub is_authenticated: bool,
+    pub username: String,
 }
 
 /// Function to handle client connections
@@ -61,6 +68,7 @@ pub async fn handle_client(
     channels_map: Arc<tokio::sync::Mutex<HashMap<String, usize>>>,
     channel_subscribers: ChannelSubscribers,
     users: Users,
+    authstate: Arc<tokio::sync::Mutex<AuthState>>,
 ) -> Result<()> {
     let mut state = ClientState::new(stream);
     let resources = SharedResources {
@@ -70,6 +78,7 @@ pub async fn handle_client(
         channels_map,
         channel_subscribers,
         users,
+        authstate,
     };
 
     loop {

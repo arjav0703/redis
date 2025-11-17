@@ -2,6 +2,7 @@ use anyhow::Result;
 
 use crate::client_handler::{ClientState, SharedResources};
 use crate::command_dispatcher::dispatch_command;
+use crate::db_handler::auth;
 use crate::types::resp::RespValue;
 
 /// Process a single command from the client
@@ -21,14 +22,22 @@ pub async fn process_command(
                         "ERR Can't execute '{}' in subscribed mode",
                         cmd.to_ascii_lowercase()
                     );
-                    state.handler.write_value(RespValue::SimpleError(err_msg)).await?;
+                    state
+                        .handler
+                        .write_value(RespValue::SimpleError(err_msg))
+                        .await?;
                     return Ok(false);
                 }
 
                 // Queue commands if in a transaction (except MULTI, EXEC, DISCARD)
-                if state.in_transaction && !matches!(cmd_upper.as_str(), "MULTI" | "EXEC" | "DISCARD") {
+                if state.in_transaction
+                    && !matches!(cmd_upper.as_str(), "MULTI" | "EXEC" | "DISCARD")
+                {
                     state.queued_commands.push(RespValue::Array(items.clone()));
-                    state.handler.write_value(RespValue::SimpleString("QUEUED".to_string())).await?;
+                    state
+                        .handler
+                        .write_value(RespValue::SimpleString("QUEUED".to_string()))
+                        .await?;
                     return Ok(false);
                 }
 
@@ -44,7 +53,10 @@ pub async fn process_command(
             }
         }
         _ => {
-            state.handler.write_value(RespValue::SimpleString("PONG".into())).await?;
+            state
+                .handler
+                .write_value(RespValue::SimpleString("PONG".into()))
+                .await?;
         }
     }
 
@@ -66,13 +78,14 @@ async fn handle_psync_command(
     resources: &SharedResources,
 ) -> Result<bool> {
     use crate::db_handler::replica_ops;
-    
+
     let should_become_replica = replica_ops::handle_psync(
         items,
         &resources.db,
         &mut state.handler,
         &resources.replicas,
-    ).await?;
+    )
+    .await?;
 
     Ok(should_become_replica)
 }
