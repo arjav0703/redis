@@ -21,16 +21,21 @@ pub async fn dispatch_command(
 ) -> Result<()> {
     let is_subscribed = state.is_subscribed();
 
-    let authstate = resources.authstate.lock().await;
-    if !authstate.is_authenticated && cmd != "AUTH" {
-        state
-            .handler
-            .write_value(RespValue::SimpleError(
-                "NOAUTH Authentication required.".to_string(),
-            ))
-            .await?;
-        return Ok(());
-    }
+    // Check authentication and drop the lock before executing commands
+    {
+        let authstate = resources.authstate.lock().await;
+        // Require authentication for all commands except AUTH.
+        if !authstate.is_authenticated && cmd != "AUTH" {
+            drop(authstate);
+            state
+                .handler
+                .write_value(RespValue::SimpleError(
+                    "NOAUTH Authentication required.".to_string(),
+                ))
+                .await?;
+            return Ok(());
+        }
+    } // authstate lock is dropped here
 
     match cmd {
         "PING" => {
