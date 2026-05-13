@@ -30,7 +30,7 @@ pub async fn process_command(
 
                 // Queue commands if in a transaction (except MULTI, EXEC, DISCARD)
                 if state.in_transaction
-                    && !matches!(cmd_upper.as_str(), "MULTI" | "EXEC" | "DISCARD")
+                    && !matches!(cmd_upper.as_str(), "MULTI" | "EXEC" | "DISCARD" | "WATCH")
                 {
                     state.queued_commands.push(RespValue::Array(items.clone()));
                     state

@@ -283,6 +283,15 @@ pub async fn dispatch_command(
         }
 
         "WATCH" => {
+            if state.in_transaction {
+                state
+                    .handler
+                    .write_value(RespValue::SimpleError(
+                        "ERR WATCH not allowed inside MULTI".to_string(),
+                    ))
+                    .await?;
+                return Ok(());
+            }
             state
                 .handler
                 .write_value(RespValue::SimpleString("OK".into()))
