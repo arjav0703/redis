@@ -282,6 +282,13 @@ pub async fn dispatch_command(
             .await?;
         }
 
+        "WATCH" => {
+            state
+                .handler
+                .write_value(RespValue::SimpleString("OK".into()))
+                .await?;
+        }
+
         _ => {
             state
                 .handler
