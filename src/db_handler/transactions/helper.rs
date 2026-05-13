@@ -4,6 +4,7 @@ pub async fn execute_command(
     items: &[RespValue],
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     replicas: &Arc<tokio::sync::Mutex<Vec<crate::types::replica::ReplicaConnection>>>,
+    watch_violated: &mut bool,
 ) -> Result<RespValue> {
     if items.is_empty() {
         return Ok(RespValue::SimpleError("ERR empty command".to_string()));
@@ -15,7 +16,7 @@ pub async fn execute_command(
     };
 
     match cmd.as_str() {
-        "SET" if items.len() >= 3 => execute_set(items, db, replicas).await,
+        "SET" if items.len() >= 3 => execute_set(items, db, replicas, watch_violated).await,
         "GET" if items.len() == 2 => execute_get(items, db).await,
         "INCR" if items.len() == 2 => execute_incr(items, db, replicas).await,
         "DEL" if items.len() >= 2 => execute_del(items, db, replicas).await,
@@ -30,9 +31,10 @@ async fn execute_set(
     items: &[RespValue],
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     _replicas: &Arc<tokio::sync::Mutex<Vec<crate::types::replica::ReplicaConnection>>>,
+    watch_violated: &mut bool,
 ) -> Result<RespValue> {
     use crate::db_handler::set_key::set_key_internal;
-    set_key_internal(db, items).await?;
+    set_key_internal(db, items, watch_violated).await?;
 
     Ok(RespValue::SimpleString("OK".to_string()))
 }

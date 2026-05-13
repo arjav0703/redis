@@ -6,7 +6,7 @@ use crate::db_handler::{
     del_key, geo, get_key, handle_config, handle_key_search, handle_type, list_ops, pub_sub,
     replica_ops, set_key::*, sorted_set, stream_ops, transactions,
 };
-use crate::replication::execute_and_replicate;
+use crate::replication::{execute_and_replicate, propogate_to_replicas};
 use crate::types::{
     replica::ReplicaConnection,
     resp::{RespHandler, RespValue},
@@ -47,9 +47,17 @@ pub async fn dispatch_command(
 
         // Key-value operations
         "SET" if items.len() >= 3 => {
-            execute_and_replicate(
-                || set_key(&resources.db, items, &mut state.handler),
+            let mut watch_violated = resources.watch_violated.lock().await;
+            set_key(
+                &resources.db,
                 items,
+                &mut state.handler,
+                &mut *watch_violated,
+            )
+            .await?;
+            drop(watch_violated);
+            propogate_to_replicas(
+                &RespValue::Array(items.to_vec()),
                 &resources.replicas,
             )
             .await?;
@@ -251,12 +259,14 @@ pub async fn dispatch_command(
             transactions::multi(&mut state.handler, &mut state.in_transaction).await?;
         }
         "EXEC" => {
+            let mut watch_violated = resources.watch_violated.lock().await;
             transactions::exec(
                 &mut state.handler,
                 &mut state.in_transaction,
                 &mut state.queued_commands,
                 &resources.db,
                 &resources.replicas,
+                &mut *watch_violated,
             )
             .await?;
         }

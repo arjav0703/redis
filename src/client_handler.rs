@@ -51,6 +51,7 @@ pub struct SharedResources {
     pub channel_subscribers: ChannelSubscribers,
     pub users: Users,
     pub authstate: Arc<tokio::sync::Mutex<AuthState>>,
+    pub watch_violated: Arc<tokio::sync::Mutex<bool>>,
 }
 
 #[derive(Debug)]
@@ -69,6 +70,7 @@ pub async fn handle_client(
     channel_subscribers: ChannelSubscribers,
     users: Users,
     authstate: Arc<tokio::sync::Mutex<AuthState>>,
+    watch_violated: Arc<tokio::sync::Mutex<bool>>,
 ) -> Result<()> {
     let mut state = ClientState::new(stream);
     let resources = SharedResources {
@@ -79,6 +81,7 @@ pub async fn handle_client(
         channel_subscribers,
         users,
         authstate,
+        watch_violated,
     };
 
     loop {

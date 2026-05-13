@@ -72,6 +72,8 @@ async fn main() -> Result<()> {
     let channels_map: Arc<tokio::sync::Mutex<HashMap<String, usize>>> =
         Arc::new(tokio::sync::Mutex::new(HashMap::new()));
     let channel_subscribers: ChannelSubscribers = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
+    let watch_violated: Arc<tokio::sync::Mutex<bool>> =
+        Arc::new(tokio::sync::Mutex::new(false));
 
     let users: Users = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
     {
@@ -88,6 +90,7 @@ async fn main() -> Result<()> {
         let channels_map = channels_map.clone();
         let channel_subscribers = channel_subscribers.clone();
         let users = users.clone();
+        let watch_violated = watch_violated.clone();
         // Create a per-connection AuthState so existing connections keep their state
         // when ACL SETUSER changes the default user's password.
         let default_user_nopass = acl::check_nopass_user(&users, "default").await;
@@ -105,6 +108,7 @@ async fn main() -> Result<()> {
                 channel_subscribers,
                 users,
                 authstate,
+                watch_violated,
             )
             .await
             {

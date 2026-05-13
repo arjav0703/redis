@@ -27,9 +27,7 @@ pub async fn watch_handler(
     let entry = match db_guard.get(&key.as_string().unwrap_or_default()) {
         Some(entry) => entry.clone(),
         None => {
-            return Ok(RespValue::SimpleError(
-                "ERR no such key to watch".to_string(),
-            ));
+            return Ok(RespValue::SimpleString("OK".to_string()));
         }
     };
 

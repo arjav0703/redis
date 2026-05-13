@@ -5,8 +5,10 @@ pub async fn set_key(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     items: &[RespValue],
     handler: &mut RespHandler,
+    watch_violated: &mut bool,
 ) -> Result<()> {
-    set_key_internal(db, items).await?;
+    set_key_internal(db, items, watch_violated).await?;
+
     handler
         .write_value(RespValue::SimpleString("OK".into()))
         .await?;
@@ -17,14 +19,16 @@ pub async fn set_key(
 pub async fn set_key_silent(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     items: &[RespValue],
+    watch_violated: &mut bool,
 ) -> Result<()> {
-    set_key_internal(db, items).await
+    set_key_internal(db, items, watch_violated).await
 }
 
 /// Internal implementation of set_key logic without response handling
 pub async fn set_key_internal(
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     items: &[RespValue],
+    watch_violated: &mut bool,
 ) -> Result<()> {
     let key = items[1].as_string().unwrap_or_default();
     let val = items[2].as_string().unwrap_or_default();
@@ -45,6 +49,14 @@ pub async fn set_key_internal(
 
     {
         let mut db = db.lock().await;
+
+        if let Some(existing_entry) = db.get(&key) {
+            println!("Key already exists: {key}, checking for watch violation");
+            if existing_entry.is_watched {
+                *watch_violated = true;
+            }
+        }
+
         db.insert(
             key.clone(),
             KeyWithExpiry {

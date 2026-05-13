@@ -41,11 +41,21 @@ pub async fn exec(
     queued_commands: &mut Vec<RespValue>,
     db: &Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     replicas: &Arc<tokio::sync::Mutex<Vec<crate::types::replica::ReplicaConnection>>>,
+    watch_violated: &mut bool,
 ) -> Result<()> {
     if !*in_transaction {
         handler
             .write_value(RespValue::SimpleError("ERR EXEC without MULTI".to_string()))
             .await?;
+        return Ok(());
+    }
+
+    if *watch_violated {
+        println!("Transaction aborted due to watched key modification");
+        handler.write_value(RespValue::NullArray).await?;
+        queued_commands.clear();
+        *watch_violated = false;
+        *in_transaction = false;
         return Ok(());
     }
 
@@ -55,7 +65,7 @@ pub async fn exec(
 
     for cmd in queued_commands.iter() {
         if let RespValue::Array(items) = cmd {
-            match execute_command(items, db, replicas).await {
+            match execute_command(items, db, replicas, watch_violated).await {
                 Ok(response) => responses.push(response),
                 Err(e) => {
                     responses.push(RespValue::SimpleError(format!("ERR {}", e)));
