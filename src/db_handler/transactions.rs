@@ -97,6 +97,7 @@ pub async fn incr_key(
                     KeyWithExpiry {
                         value: crate::types::ValueType::String(new_value.to_string()),
                         expiry,
+                        is_watched: false,
                     },
                 );
 
@@ -116,6 +117,7 @@ pub async fn incr_key(
             KeyWithExpiry {
                 value: crate::types::ValueType::String("1".to_string()),
                 expiry: None,
+                is_watched: false,
             },
         );
         handler.write_value(RespValue::Integer(1)).await?;

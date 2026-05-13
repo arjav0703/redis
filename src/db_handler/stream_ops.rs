@@ -51,6 +51,7 @@ pub async fn handle_xadd(
     let entry = db.entry(key.clone()).or_insert_with(|| KeyWithExpiry {
         value: crate::types::ValueType::Stream(crate::types::streams::Stream::new()),
         expiry: None,
+        is_watched: false,
     });
 
     // add the entry

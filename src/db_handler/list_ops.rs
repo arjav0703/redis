@@ -52,6 +52,7 @@ pub async fn handle_push(
             KeyWithExpiry {
                 value: crate::types::ValueType::List(list),
                 expiry: None,
+                is_watched: false,
             },
         );
 

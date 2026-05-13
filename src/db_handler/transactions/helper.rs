@@ -97,6 +97,7 @@ async fn execute_incr(
         KeyWithExpiry {
             value: crate::types::ValueType::String(new_value.to_string()),
             expiry,
+            is_watched: false,
         },
     );
 

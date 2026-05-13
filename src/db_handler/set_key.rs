@@ -50,6 +50,7 @@ pub async fn set_key_internal(
             KeyWithExpiry {
                 value: crate::types::ValueType::String(val),
                 expiry,
+                is_watched: false,
             },
         );
         println!("Current DB state: {db:?}");

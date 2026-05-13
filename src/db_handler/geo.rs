@@ -57,6 +57,7 @@ pub async fn add(
             KeyWithExpiry {
                 value: crate::types::ValueType::SortedSet(vec![(member.clone(), score as f64)]),
                 expiry: None,
+                is_watched: false,
             },
         );
         handler.write_value(RespValue::Integer(1)).await?;

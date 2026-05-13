@@ -80,14 +80,17 @@ fn parse_rdb(contents: &[u8]) -> Result<HashMap<String, KeyWithExpiry>> {
                 // Convert Unix timestamp to Instant
                 let expiry_timestamp = UNIX_EPOCH + Duration::from_secs(expiry_secs as u64);
                 let now = SystemTime::now();
-                
-                if let std::result::Result::Ok(duration_until_expiry) = expiry_timestamp.duration_since(now) {
+
+                if let std::result::Result::Ok(duration_until_expiry) =
+                    expiry_timestamp.duration_since(now)
+                {
                     // Not expired yet
                     db.insert(
                         key,
                         KeyWithExpiry {
                             value: crate::types::ValueType::String(value),
                             expiry: Some(Instant::now() + duration_until_expiry),
+                            is_watched: false,
                         },
                     );
                 }
@@ -112,14 +115,17 @@ fn parse_rdb(contents: &[u8]) -> Result<HashMap<String, KeyWithExpiry>> {
                 // Convert Unix timestamp to Instant
                 let expiry_timestamp = UNIX_EPOCH + Duration::from_millis(expiry_ms);
                 let now = SystemTime::now();
-                
-                if let std::result::Result::Ok(duration_until_expiry) = expiry_timestamp.duration_since(now) {
+
+                if let std::result::Result::Ok(duration_until_expiry) =
+                    expiry_timestamp.duration_since(now)
+                {
                     // Not expired yet
                     db.insert(
                         key,
                         KeyWithExpiry {
                             value: crate::types::ValueType::String(value),
                             expiry: Some(Instant::now() + duration_until_expiry),
+                            is_watched: false,
                         },
                     );
                 }
@@ -141,6 +147,7 @@ fn parse_rdb(contents: &[u8]) -> Result<HashMap<String, KeyWithExpiry>> {
                     KeyWithExpiry {
                         value: crate::types::ValueType::String(value),
                         expiry: None,
+                        is_watched: false,
                     },
                 );
             }

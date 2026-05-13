@@ -20,4 +20,5 @@ pub enum ValueType {
 pub struct KeyWithExpiry {
     pub value: ValueType,
     pub expiry: Option<Instant>,
+    pub is_watched: bool,
 }

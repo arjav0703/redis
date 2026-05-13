@@ -40,6 +40,7 @@ pub async fn zadd(
             KeyWithExpiry {
                 value: crate::types::ValueType::SortedSet(vec![(member.clone(), score)]),
                 expiry: None,
+                is_watched: false,
             },
         );
         handler.write_value(RespValue::Integer(1)).await?;
@@ -56,6 +57,7 @@ pub async fn zadd(
         KeyWithExpiry {
             value: crate::types::ValueType::SortedSet(sorted_vec),
             expiry: None,
+            is_watched: false,
         },
     );
 
