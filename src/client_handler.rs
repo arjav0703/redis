@@ -8,7 +8,7 @@ use crate::{
     types::{
         replica::ReplicaConnection,
         resp::{RespHandler, RespValue},
-        KeyWithExpiry,
+        KeyWithExpiry, ServerConfig,
     },
     Users,
 };
@@ -52,6 +52,7 @@ pub struct SharedResources {
     pub users: Users,
     pub authstate: Arc<tokio::sync::Mutex<AuthState>>,
     pub watch_violated: Arc<tokio::sync::Mutex<bool>>,
+    pub server_config: Arc<tokio::sync::Mutex<ServerConfig>>,
 }
 
 #[derive(Debug)]
@@ -61,28 +62,8 @@ pub struct AuthState {
 }
 
 /// Function to handle client connections
-pub async fn handle_client(
-    stream: TcpStream,
-    db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
-    replicas: Arc<tokio::sync::Mutex<Vec<ReplicaConnection>>>,
-    blocked_clients: BlockedClients,
-    channels_map: Arc<tokio::sync::Mutex<HashMap<String, usize>>>,
-    channel_subscribers: ChannelSubscribers,
-    users: Users,
-    authstate: Arc<tokio::sync::Mutex<AuthState>>,
-    watch_violated: Arc<tokio::sync::Mutex<bool>>,
-) -> Result<()> {
+pub async fn handle_client(stream: TcpStream, resources: SharedResources) -> Result<()> {
     let mut state = ClientState::new(stream);
-    let resources = SharedResources {
-        db,
-        replicas,
-        blocked_clients,
-        channels_map,
-        channel_subscribers,
-        users,
-        authstate,
-        watch_violated,
-    };
 
     loop {
         tokio::select! {

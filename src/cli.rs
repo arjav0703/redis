@@ -18,15 +18,17 @@ pub fn set_env_vars() {
     env::set_var("replication_id", replication_id);
 
     env::set_var("port", port);
-    env::set_var("dir", dir);
+
+    if let Some(dir) = dir {
+        env::set_var("dir", dir);
+    }
     env::set_var("dbfilename", dbfilename);
 }
 
 /// Gets args :)
-pub fn getargs() -> (String, String, String, String) {
+pub fn getargs() -> (Option<String>, String, String, String) {
     let args = Cli::parse();
-
-    let dir = args.dir.unwrap_or(".".to_string());
+    let dir = args.dir;
     let dbfilename = args.dbfilename.unwrap_or("dump.rdb".to_string());
     let port = args.port.unwrap_or("6379".to_string());
 
@@ -37,7 +39,7 @@ pub fn getargs() -> (String, String, String, String) {
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
-    #[clap(short, long, default_value = ".")]
+    #[clap(short, long)]
     dir: Option<String>,
     #[clap(long, default_value = "dump.rdb")]
     dbfilename: Option<String>,

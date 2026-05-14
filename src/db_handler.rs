@@ -139,6 +139,7 @@ pub async fn handle_config(
     // db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
     items: &[RespValue],
     handler: &mut RespHandler,
+    server_config: &Arc<tokio::sync::Mutex<crate::types::ServerConfig>>,
 ) -> Result<()> {
     let subcommand = items.get(1).and_then(|v| v.as_string());
     match subcommand {
@@ -147,7 +148,7 @@ pub async fn handle_config(
                 let key = items[2].as_string().unwrap_or_default();
                 match key.to_ascii_uppercase().as_str() {
                     "DIR" => {
-                        let dir = env::var("dir").unwrap_or_default();
+                        let dir = env::var("dir").unwrap_or(server_config.lock().await.dir.clone());
                         let resp_vec = vec![
                             RespValue::BulkString("dir".into()),
                             RespValue::BulkString(dir),
@@ -159,6 +160,45 @@ pub async fn handle_config(
                         let resp_vec = vec![
                             RespValue::BulkString("dbfilename".into()),
                             RespValue::BulkString(dbfilename),
+                        ];
+                        handler.write_value(RespValue::Array(resp_vec)).await?;
+                    }
+                    "APPENDONLY" => {
+                        handler
+                            .write_value(RespValue::Array(vec![
+                                RespValue::BulkString("appendonly".into()),
+                                RespValue::BulkString(
+                                    match server_config.lock().await.appendonly {
+                                        true => "yes".to_string(),
+                                        false => "no".to_string(),
+                                    },
+                                ),
+                            ]))
+                            .await?;
+                    }
+
+                    "APPENDDIRNAME" => {
+                        let resp_vec = vec![
+                            RespValue::BulkString("appenddirname".into()),
+                            RespValue::BulkString(server_config.lock().await.appenddirname.clone()),
+                        ];
+                        handler.write_value(RespValue::Array(resp_vec)).await?;
+                    }
+
+                    "APPENDFILENAME" => {
+                        let resp_vec = vec![
+                            RespValue::BulkString("appendfilename".into()),
+                            RespValue::BulkString(
+                                server_config.lock().await.appendfilename.clone(),
+                            ),
+                        ];
+                        handler.write_value(RespValue::Array(resp_vec)).await?;
+                    }
+
+                    "APPENDFSYNC" => {
+                        let resp_vec = vec![
+                            RespValue::BulkString("appendfsync".into()),
+                            RespValue::BulkString(server_config.lock().await.appendfsync.clone()),
                         ];
                         handler.write_value(RespValue::Array(resp_vec)).await?;
                     }

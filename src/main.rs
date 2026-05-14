@@ -20,7 +20,11 @@ mod replication;
 
 use client_handler::handle_client;
 
-use crate::{client_handler::AuthState, db_handler::acl};
+use crate::{
+    client_handler::{AuthState, SharedResources},
+    db_handler::acl,
+    types::ServerConfig,
+};
 
 #[derive(Debug)]
 pub struct BlockedClient {
@@ -72,8 +76,10 @@ async fn main() -> Result<()> {
     let channels_map: Arc<tokio::sync::Mutex<HashMap<String, usize>>> =
         Arc::new(tokio::sync::Mutex::new(HashMap::new()));
     let channel_subscribers: ChannelSubscribers = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
-    let watch_violated: Arc<tokio::sync::Mutex<bool>> =
-        Arc::new(tokio::sync::Mutex::new(false));
+    let watch_violated: Arc<tokio::sync::Mutex<bool>> = Arc::new(tokio::sync::Mutex::new(false));
+
+    let server_config: Arc<tokio::sync::Mutex<ServerConfig>> =
+        Arc::new(tokio::sync::Mutex::new(ServerConfig::default()));
 
     let users: Users = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
     {
@@ -91,6 +97,7 @@ async fn main() -> Result<()> {
         let channel_subscribers = channel_subscribers.clone();
         let users = users.clone();
         let watch_violated = watch_violated.clone();
+        let server_config = server_config.clone();
         // Create a per-connection AuthState so existing connections keep their state
         // when ACL SETUSER changes the default user's password.
         let default_user_nopass = acl::check_nopass_user(&users, "default").await;
@@ -101,14 +108,17 @@ async fn main() -> Result<()> {
         tokio::spawn(async move {
             if let Err(e) = handle_client(
                 stream,
-                db,
-                replicas,
-                blocked_clients,
-                channels_map,
-                channel_subscribers,
-                users,
-                authstate,
-                watch_violated,
+                SharedResources {
+                    db,
+                    replicas,
+                    blocked_clients,
+                    channels_map,
+                    channel_subscribers,
+                    users,
+                    authstate,
+                    watch_violated,
+                    server_config,
+                },
             )
             .await
             {

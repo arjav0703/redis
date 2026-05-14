@@ -83,7 +83,7 @@ pub async fn dispatch_command(
 
         // Configuration and metadata
         "CONFIG" => {
-            handle_config(items, &mut state.handler).await?;
+            handle_config(items, &mut state.handler, &resources.server_config).await?;
         }
         "KEYS" if items.len() == 2 => {
             let pattern = items[1].as_string().unwrap_or_default();
