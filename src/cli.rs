@@ -9,6 +9,9 @@ use std::env;
 pub fn set_env_vars() {
     let args = Cli::parse();
 
+    let port = args.port.clone().unwrap_or("6379".to_string());
+    env::set_var("port", port);
+
     let replicaof = args.replicaof.unwrap_or("".to_string());
 
     if !replicaof.is_empty() {

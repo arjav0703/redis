@@ -6,9 +6,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
-pub async fn read_rdb_file() -> Result<HashMap<String, KeyWithExpiry>> {
-    let dbfilename = env::var("dbfilename").expect("unexpected env var dbfilename");
-    let dir = env::var("dir").unwrap_or(".".to_string());
+pub async fn read_rdb_file(dir: &str, dbfilename: &str) -> Result<HashMap<String, KeyWithExpiry>> {
     let path = format!("{dir}/{dbfilename}");
     dbg!(&path);
     if tokio::fs::metadata(&path).await.is_err() {

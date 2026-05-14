@@ -41,16 +41,18 @@ pub type ChannelSubscribers =
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let server_config: Arc<tokio::sync::Mutex<ServerConfig>> =
+        Arc::new(tokio::sync::Mutex::new(ServerConfig::from_cli()));
+    let config_lock = server_config.lock().await;
+    let port = { config_lock.port.clone() };
+
     set_env_vars();
-    let (_, _a, port, _isreplica) = cli::getargs();
     let url = format!("127.0.0.1:{port}");
 
     println!("Mini‑Redis listening on {url}");
     let listener = TcpListener::bind(url).await?;
 
-    let is_isreplica = !env::var("replicaof").unwrap_or_default().is_empty();
-
-    let initial_db = file_handler::read_rdb_file().await?;
+    let initial_db = file_handler::read_rdb_file(&config_lock.dir, &config_lock.dbfilename).await?;
     println!("Initial DB state from RDB file: {initial_db:?}");
     let db = Arc::new(tokio::sync::Mutex::new(
         HashMap::<String, KeyWithExpiry>::new(),
@@ -60,7 +62,7 @@ async fn main() -> Result<()> {
         *db_lock = initial_db;
     }
 
-    if is_isreplica {
+    if config_lock.is_replica {
         let db_clone = Arc::clone(&db);
         tokio::spawn(async move {
             println!("Starting replica handler...");
@@ -78,15 +80,13 @@ async fn main() -> Result<()> {
     let channel_subscribers: ChannelSubscribers = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
     let watch_violated: Arc<tokio::sync::Mutex<bool>> = Arc::new(tokio::sync::Mutex::new(false));
 
-    let server_config: Arc<tokio::sync::Mutex<ServerConfig>> =
-        Arc::new(tokio::sync::Mutex::new(ServerConfig::from_cli()));
-
     let users: Users = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
     {
         let mut users_lock = users.lock().await;
         users_lock.insert("default".to_string(), None);
     }
 
+    drop(config_lock);
     loop {
         let (stream, _) = listener.accept().await?;
 
