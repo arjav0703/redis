@@ -262,7 +262,7 @@ pub async fn dispatch_command(
                 &mut state.queued_commands,
                 &resources.db,
                 &resources.replicas,
-                &mut *watch_violated,
+                &mut watch_violated,
             )
             .await?;
         }
@@ -271,6 +271,7 @@ pub async fn dispatch_command(
                 &mut state.handler,
                 &mut state.in_transaction,
                 &mut state.queued_commands,
+                &mut *resources.watch_violated.lock().await,
             )
             .await?;
         }

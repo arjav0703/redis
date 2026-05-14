@@ -16,6 +16,7 @@ pub async fn discard(
     handler: &mut RespHandler,
     in_transaction: &mut bool,
     queued_commands: &mut Vec<RespValue>,
+    watch_violated: &mut bool,
 ) -> Result<()> {
     if !*in_transaction {
         handler
@@ -31,6 +32,8 @@ pub async fn discard(
     handler
         .write_value(RespValue::SimpleString("OK".to_string()))
         .await?;
+
+    *watch_violated = false;
 
     Ok(())
 }
