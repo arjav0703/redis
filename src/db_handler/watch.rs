@@ -18,32 +18,33 @@ pub async fn watch_handler(
         ));
     }
 
-    let key = items
-        .get(1)
-        .ok_or_else(|| anyhow::anyhow!("ERR key to watch not found "))?;
+    let keys = items.iter().skip(1);
 
     let mut db_guard = db.lock().await;
 
-    let entry = match db_guard.get(&key.as_string().unwrap_or_default()) {
-        Some(entry) => entry.clone(),
-        None => {
-            return Ok(RespValue::SimpleString("OK".to_string()));
-        }
-    };
+    for key in keys {
+        let entry = match db_guard.get(&key.as_string().unwrap_or_default()) {
+            Some(entry) => entry.clone(),
+            None => KeyWithExpiry {
+                value: crate::types::ValueType::String("".to_string()),
+                expiry: None,
+                is_watched: true,
+            },
+        };
 
-    db_guard.insert(
-        key.as_string().unwrap_or_default(),
-        KeyWithExpiry {
-            value: entry.value.clone(),
-            expiry: entry.expiry,
-            is_watched: true,
-        },
-    );
+        db_guard.insert(
+            key.as_string().unwrap_or_default(),
+            KeyWithExpiry {
+                value: entry.value.clone(),
+                expiry: entry.expiry,
+                is_watched: true,
+            },
+        );
 
-    println!(
-        "Client is watching key: {}",
-        key.as_string().unwrap_or_default()
-    );
-
+        println!(
+            "Client is watching key: {}",
+            key.as_string().unwrap_or_default()
+        );
+    }
     Ok(RespValue::SimpleString("OK".to_string()))
 }
