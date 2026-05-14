@@ -57,3 +57,12 @@ impl Display for AppendOnly {
         }
     }
 }
+
+impl AppendOnly {
+    pub fn to_bool(&self) -> bool {
+        match self {
+            AppendOnly::Yes => true,
+            AppendOnly::No => false,
+        }
+    }
+}

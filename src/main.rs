@@ -5,11 +5,11 @@ use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 pub mod cli;
 pub mod parsers;
-use std::env;
 mod types;
 use cli::set_env_vars;
 use types::{replica::ReplicaConnection, KeyWithExpiry};
 
+mod aof;
 mod client_handler;
 mod command_dispatcher;
 mod command_processor;
@@ -21,6 +21,7 @@ mod replication;
 use client_handler::handle_client;
 
 use crate::{
+    aof::init_aof,
     client_handler::{AuthState, SharedResources},
     db_handler::acl,
     types::ServerConfig,
@@ -51,6 +52,8 @@ async fn main() -> Result<()> {
 
     println!("Mini‑Redis listening on {url}");
     let listener = TcpListener::bind(url).await?;
+
+    init_aof(&config_lock).await?;
 
     let initial_db = file_handler::read_rdb_file(&config_lock.dir, &config_lock.dbfilename).await?;
     println!("Initial DB state from RDB file: {initial_db:?}");
