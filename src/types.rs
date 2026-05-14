@@ -3,7 +3,7 @@ pub mod resp;
 pub mod streams;
 
 use resp::{RespHandler, RespValue};
-use std::{env, time::Instant};
+use std::{env, fmt::Display, time::Instant};
 use streams::Stream;
 
 /// Enum to represent different value types in Redis
@@ -25,20 +25,35 @@ pub struct KeyWithExpiry {
 
 pub struct ServerConfig {
     pub dir: String,
-    pub appendonly: bool,
+    pub appendonly: AppendOnly,
     pub appenddirname: String,
     pub appendfilename: String,
     pub appendfsync: String,
+    pub is_replica: bool,
+    pub dbfilename: String,
+    pub port: String,
 }
 
-impl Default for ServerConfig {
-    fn default() -> Self {
-        ServerConfig {
-            dir: env::current_dir().unwrap().to_str().unwrap().to_string(),
-            appendonly: false,
-            appenddirname: "appendonlydir".to_string(),
-            appendfilename: "appendonly.aof".to_string(),
-            appendfsync: "everysec".to_string(),
+pub enum AppendOnly {
+    Yes,
+    No,
+}
+
+impl From<String> for AppendOnly {
+    fn from(s: String) -> Self {
+        match s.to_ascii_lowercase().as_str() {
+            "yes" => AppendOnly::Yes,
+            "no" => AppendOnly::No,
+            _ => AppendOnly::No,
+        }
+    }
+}
+
+impl Display for AppendOnly {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AppendOnly::Yes => write!(f, "yes"),
+            AppendOnly::No => write!(f, "no"),
         }
     }
 }

@@ -79,7 +79,7 @@ async fn main() -> Result<()> {
     let watch_violated: Arc<tokio::sync::Mutex<bool>> = Arc::new(tokio::sync::Mutex::new(false));
 
     let server_config: Arc<tokio::sync::Mutex<ServerConfig>> =
-        Arc::new(tokio::sync::Mutex::new(ServerConfig::default()));
+        Arc::new(tokio::sync::Mutex::new(ServerConfig::from_cli()));
 
     let users: Users = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
     {

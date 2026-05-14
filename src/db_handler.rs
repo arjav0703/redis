@@ -168,10 +168,7 @@ pub async fn handle_config(
                             .write_value(RespValue::Array(vec![
                                 RespValue::BulkString("appendonly".into()),
                                 RespValue::BulkString(
-                                    match server_config.lock().await.appendonly {
-                                        true => "yes".to_string(),
-                                        false => "no".to_string(),
-                                    },
+                                    server_config.lock().await.appendonly.to_string(),
                                 ),
                             ]))
                             .await?;
