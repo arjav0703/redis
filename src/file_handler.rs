@@ -1,7 +1,6 @@
 use crate::types::KeyWithExpiry;
 use anyhow::{Ok, Result};
 use std::collections::HashMap;
-use std::env;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;

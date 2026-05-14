@@ -3,7 +3,7 @@ pub mod resp;
 pub mod streams;
 
 use resp::{RespHandler, RespValue};
-use std::{env, fmt::Display, time::Instant};
+use std::{fmt::Display, time::Instant};
 use streams::Stream;
 
 /// Enum to represent different value types in Redis
