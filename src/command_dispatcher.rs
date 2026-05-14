@@ -56,11 +56,7 @@ pub async fn dispatch_command(
             )
             .await?;
             drop(watch_violated);
-            propogate_to_replicas(
-                &RespValue::Array(items.to_vec()),
-                &resources.replicas,
-            )
-            .await?;
+            propogate_to_replicas(&RespValue::Array(items.to_vec()), &resources.replicas).await?;
         }
         "GET" if items.len() == 2 => {
             get_key(&resources.db, items, &mut state.handler).await?;
@@ -295,6 +291,15 @@ pub async fn dispatch_command(
         "WATCH" => {
             let res = crate::db_handler::watch::watch_handler(&resources.db, state, items).await?;
             state.handler.write_value(res).await?;
+        }
+
+        "UNWATCH" => {
+            let mut watch_violated = resources.watch_violated.lock().await;
+            *watch_violated = false;
+            state
+                .handler
+                .write_value(RespValue::SimpleString("OK".to_string()))
+                .await?;
         }
 
         _ => {
