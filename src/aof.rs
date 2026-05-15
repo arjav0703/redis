@@ -20,5 +20,22 @@ pub async fn init_aof(server_config: &MutexGuard<'_, ServerConfig>) -> Result<()
     );
     dbg!(&aof_file_path);
     fs::write(&aof_file_path, "")?;
+
+    create_aof_manifest(server_config)?;
+
+    Ok(())
+}
+
+fn create_aof_manifest(server_config: &ServerConfig) -> Result<()> {
+    let manifest_path = format!(
+        "{}/{}/{}.manifest",
+        server_config.dir, server_config.appenddirname, server_config.appendfilename
+    );
+
+    let content = format!(
+        "file {}.1.incr.aof seq 1 type i\n",
+        server_config.appendfilename
+    );
+    fs::write(&manifest_path, content)?;
     Ok(())
 }
