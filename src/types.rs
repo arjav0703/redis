@@ -1,3 +1,4 @@
+pub mod commands;
 pub mod replica;
 pub mod resp;
 pub mod streams;

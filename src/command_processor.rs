@@ -2,6 +2,7 @@ use anyhow::Result;
 
 use crate::client_handler::{ClientState, SharedResources};
 use crate::command_dispatcher::dispatch_command;
+use crate::types::commands::RedisCommand;
 use crate::types::resp::RespValue;
 
 /// Process a single command from the client
@@ -16,7 +17,9 @@ pub async fn process_command(
                 .server_config
                 .lock()
                 .await
-                .append_to_aof_file(&items)?;
+                .append_to_aof_file(RedisCommand::from_items(&items).unwrap())
+                .unwrap();
+
             if let RespValue::BulkString(cmd) | RespValue::SimpleString(cmd) = &items[0] {
                 let cmd_upper = cmd.to_ascii_uppercase();
 
@@ -51,7 +54,14 @@ pub async fn process_command(
                         return Ok(true); // Signal to convert to replica
                     }
                 } else {
-                    dispatch_command(&cmd_upper, &items, state, resources).await?;
+                    if let Some(command) = RedisCommand::from_items(&items.clone()) {
+                        dispatch_command(command, state, resources).await?;
+                    } else {
+                        state
+                            .handler
+                            .write_value(RespValue::SimpleError("ERR unknown command".into()))
+                            .await?;
+                    }
                 }
             }
         }

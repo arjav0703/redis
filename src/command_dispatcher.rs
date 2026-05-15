@@ -7,6 +7,7 @@ use crate::db_handler::{
     replica_ops, set_key::*, sorted_set, stream_ops, transactions,
 };
 use crate::replication::{execute_and_replicate, propogate_to_replicas};
+use crate::types::commands::{CommandName, RedisCommand};
 use crate::types::{
     replica::ReplicaConnection,
     resp::{RespHandler, RespValue},
@@ -14,18 +15,18 @@ use crate::types::{
 
 /// Dispatch command to the appropriate handler function
 pub async fn dispatch_command(
-    cmd: &str,
-    items: &[RespValue],
+    cmd: RedisCommand,
     state: &mut ClientState,
     resources: &SharedResources,
 ) -> Result<()> {
+    let items = cmd.args;
     let is_subscribed = state.is_subscribed();
 
     // Check authentication and drop the lock before executing commands
     {
         let authstate = resources.authstate.lock().await;
         // Require authentication for all commands except AUTH.
-        if !authstate.is_authenticated && cmd != "AUTH" {
+        if !authstate.is_authenticated && !matches!(cmd.name, CommandName::Auth) {
             drop(authstate);
             state
                 .handler
@@ -37,20 +38,20 @@ pub async fn dispatch_command(
         }
     } // authstate lock is dropped here
 
-    match cmd {
-        "PING" => {
-            crate::db_handler::send_pong(&mut state.handler, items, is_subscribed).await?;
+    match cmd.name {
+        CommandName::Ping => {
+            crate::db_handler::send_pong(&mut state.handler, &items, is_subscribed).await?;
         }
-        "ECHO" if items.len() == 2 && !is_subscribed => {
+        CommandName::Echo if items.len() == 2 && !is_subscribed => {
             state.handler.write_value(items[1].clone()).await?;
         }
 
         // Key-value operations
-        "SET" if items.len() >= 3 => {
+        CommandName::Set if items.len() >= 3 => {
             let mut watch_violated = resources.watch_violated.lock().await;
             set_key(
                 &resources.db,
-                items,
+                &items,
                 &mut state.handler,
                 &mut *watch_violated,
             )
@@ -58,111 +59,111 @@ pub async fn dispatch_command(
             drop(watch_violated);
             propogate_to_replicas(&RespValue::Array(items.to_vec()), &resources.replicas).await?;
         }
-        "GET" if items.len() == 2 => {
-            get_key(&resources.db, items, &mut state.handler).await?;
+        CommandName::Get if items.len() == 2 => {
+            get_key(&resources.db, &items, &mut state.handler).await?;
         }
-        "DEL" if items.len() >= 2 => {
+        CommandName::Del if items.len() >= 2 => {
             execute_and_replicate(
-                || del_key(&resources.db, items, &mut state.handler),
-                items,
+                || del_key(&resources.db, &items, &mut state.handler),
+                &items,
                 &resources.replicas,
             )
             .await?;
         }
-        "INCR" if items.len() == 2 => {
+        CommandName::Incr if items.len() == 2 => {
             execute_and_replicate(
-                || transactions::incr_key(&resources.db, items, &mut state.handler),
-                items,
+                || transactions::incr_key(&resources.db, &items, &mut state.handler),
+                &items,
                 &resources.replicas,
             )
             .await?;
         }
-        "TYPE" if items.len() == 2 => {
-            handle_type(&resources.db, items, &mut state.handler).await?;
+        CommandName::Type if items.len() == 2 => {
+            handle_type(&resources.db, &items, &mut state.handler).await?;
         }
 
         // Configuration and metadata
-        "CONFIG" => {
-            handle_config(items, &mut state.handler, &resources.server_config).await?;
+        CommandName::Config => {
+            handle_config(&items, &mut state.handler, &resources.server_config).await?;
         }
-        "KEYS" if items.len() == 2 => {
+        CommandName::Keys if items.len() == 2 => {
             let pattern = items[1].as_string().unwrap_or_default();
             handle_key_search(&resources.db, &pattern, &mut state.handler).await?;
         }
-        "INFO" if items.len() == 2 => {
+        CommandName::Info if items.len() == 2 => {
             replica_ops::handle_info(&mut state.handler).await?;
         }
 
         // Replication commands
-        "REPLCONF" => {
-            handle_replconf_command(&mut state.handler, items).await?;
+        CommandName::Replconf => {
+            handle_replconf_command(&mut state.handler, &items).await?;
         }
-        "WAIT" if items.len() == 3 => {
-            handle_wait_command(&mut state.handler, items, &resources.replicas).await?;
+        CommandName::Wait if items.len() == 3 => {
+            handle_wait_command(&mut state.handler, &items, &resources.replicas).await?;
         }
 
         // Stream operations
-        "XADD" if items.len() >= 5 => {
-            stream_ops::handle_xadd(&resources.db, items, &mut state.handler).await?;
+        CommandName::XAdd if items.len() >= 5 => {
+            stream_ops::handle_xadd(&resources.db, &items, &mut state.handler).await?;
         }
-        "XRANGE" if items.len() >= 4 => {
-            stream_ops::handle_xrange(&resources.db, items, &mut state.handler).await?;
+        CommandName::XRange if items.len() >= 4 => {
+            stream_ops::handle_xrange(&resources.db, &items, &mut state.handler).await?;
         }
-        "XREAD" if items.len() >= 4 => {
-            stream_ops::handle_xread(&resources.db, items, &mut state.handler).await?;
+        CommandName::XRead if items.len() >= 4 => {
+            stream_ops::handle_xread(&resources.db, &items, &mut state.handler).await?;
         }
 
         // List operations
-        "RPUSH" if items.len() >= 3 => {
+        CommandName::RPush if items.len() >= 3 => {
             execute_and_replicate(
                 || {
                     list_ops::handle_push(
                         &resources.db,
-                        items,
+                        &items,
                         &mut state.handler,
                         false,
                         &resources.blocked_clients,
                     )
                 },
-                items,
+                &items,
                 &resources.replicas,
             )
             .await?;
         }
-        "LPUSH" if items.len() >= 3 => {
+        CommandName::LPush if items.len() >= 3 => {
             execute_and_replicate(
                 || {
                     list_ops::handle_push(
                         &resources.db,
-                        items,
+                        &items,
                         &mut state.handler,
                         true,
                         &resources.blocked_clients,
                     )
                 },
-                items,
+                &items,
                 &resources.replicas,
             )
             .await?;
         }
-        "LRANGE" if items.len() == 4 => {
-            list_ops::handle_lrange(&resources.db, items, &mut state.handler).await?;
+        CommandName::LRange if items.len() == 4 => {
+            list_ops::handle_lrange(&resources.db, &items, &mut state.handler).await?;
         }
-        "LLEN" if items.len() == 2 => {
-            list_ops::handle_llen(&resources.db, items, &mut state.handler).await?;
+        CommandName::LLen if items.len() == 2 => {
+            list_ops::handle_llen(&resources.db, &items, &mut state.handler).await?;
         }
-        "LPOP" if items.len() >= 2 => {
+        CommandName::LPop if items.len() >= 2 => {
             execute_and_replicate(
-                || list_ops::handle_lpop(&resources.db, items, &mut state.handler),
-                items,
+                || list_ops::handle_lpop(&resources.db, &items, &mut state.handler),
+                &items,
                 &resources.replicas,
             )
             .await?;
         }
-        "BLPOP" if items.len() >= 3 => {
+        CommandName::BLPop if items.len() >= 3 => {
             list_ops::handle_blpop(
                 &resources.db,
-                items,
+                &items,
                 &mut state.handler,
                 &resources.blocked_clients,
             )
@@ -170,18 +171,18 @@ pub async fn dispatch_command(
         }
 
         // Pub/Sub operations
-        "PUBLISH" if items.len() >= 3 => {
+        CommandName::Publish if items.len() >= 3 => {
             pub_sub::handle_publish(
-                items,
+                &items,
                 &resources.channels_map,
                 &resources.channel_subscribers,
                 &mut state.handler,
             )
             .await?;
         }
-        "SUBSCRIBE" if items.len() >= 2 => {
+        CommandName::Subscribe if items.len() >= 2 => {
             pub_sub::handle_subscribe(
-                items,
+                &items,
                 &mut state.handler,
                 &mut state.subscribed_channels,
                 &resources.channels_map,
@@ -190,9 +191,9 @@ pub async fn dispatch_command(
             )
             .await?;
         }
-        "UNSUBSCRIBE" if items.len() >= 2 => {
+        CommandName::Unsubscribe if items.len() >= 2 => {
             pub_sub::handle_unsubscribe(
-                items,
+                &items,
                 &mut state.handler,
                 &mut state.subscribed_channels,
                 &resources.channels_map,
@@ -202,59 +203,59 @@ pub async fn dispatch_command(
         }
 
         // Sorted set operations
-        "ZADD" if items.len() >= 4 => {
+        CommandName::ZAdd if items.len() >= 4 => {
             execute_and_replicate(
-                || sorted_set::zadd(&resources.db, items, &mut state.handler),
-                items,
+                || sorted_set::zadd(&resources.db, &items, &mut state.handler),
+                &items,
                 &resources.replicas,
             )
             .await?;
         }
-        "ZRANK" if items.len() >= 3 => {
-            sorted_set::zrank(&resources.db, items, &mut state.handler).await?;
+        CommandName::ZRank if items.len() >= 3 => {
+            sorted_set::zrank(&resources.db, &items, &mut state.handler).await?;
         }
-        "ZRANGE" if items.len() >= 4 => {
-            sorted_set::zrange(&resources.db, items, &mut state.handler).await?;
+        CommandName::ZRange if items.len() >= 4 => {
+            sorted_set::zrange(&resources.db, &items, &mut state.handler).await?;
         }
-        "ZCARD" if items.len() == 2 => {
-            sorted_set::zcard(&resources.db, items, &mut state.handler).await?;
+        CommandName::ZCard if items.len() == 2 => {
+            sorted_set::zcard(&resources.db, &items, &mut state.handler).await?;
         }
-        "ZSCORE" if items.len() == 3 => {
-            sorted_set::zscore(&resources.db, items, &mut state.handler).await?;
+        CommandName::ZScore if items.len() == 3 => {
+            sorted_set::zscore(&resources.db, &items, &mut state.handler).await?;
         }
-        "ZREM" if items.len() >= 3 => {
+        CommandName::ZRem if items.len() >= 3 => {
             execute_and_replicate(
-                || sorted_set::zrem(&resources.db, items, &mut state.handler),
-                items,
+                || sorted_set::zrem(&resources.db, &items, &mut state.handler),
+                &items,
                 &resources.replicas,
             )
             .await?;
         }
 
         // Geo operations
-        "GEOADD" if items.len() >= 5 => {
+        CommandName::GeoAdd if items.len() >= 5 => {
             execute_and_replicate(
-                || geo::add(&resources.db, items, &mut state.handler),
-                items,
+                || geo::add(&resources.db, &items, &mut state.handler),
+                &items,
                 &resources.replicas,
             )
             .await?;
         }
-        "GEOPOS" if items.len() >= 3 => {
-            geo::pos(&resources.db, items, &mut state.handler).await?;
+        CommandName::GeoPos if items.len() >= 3 => {
+            geo::pos(&resources.db, &items, &mut state.handler).await?;
         }
-        "GEODIST" if items.len() >= 3 => {
-            geo::dist(&resources.db, items, &mut state.handler).await?;
+        CommandName::GeoDist if items.len() >= 3 => {
+            geo::dist(&resources.db, &items, &mut state.handler).await?;
         }
-        "GEOSEARCH" if items.len() >= 5 => {
-            geo::search(&resources.db, items, &mut state.handler).await?;
+        CommandName::GeoSearch if items.len() >= 5 => {
+            geo::search(&resources.db, &items, &mut state.handler).await?;
         }
 
         // Transaction operations
-        "MULTI" => {
+        CommandName::Multi => {
             transactions::multi(&mut state.handler, &mut state.in_transaction).await?;
         }
-        "EXEC" => {
+        CommandName::Exec => {
             let mut watch_violated = resources.watch_violated.lock().await;
             transactions::exec(
                 &mut state.handler,
@@ -266,7 +267,7 @@ pub async fn dispatch_command(
             )
             .await?;
         }
-        "DISCARD" => {
+        CommandName::Discard => {
             transactions::discard(
                 &mut state.handler,
                 &mut state.in_transaction,
@@ -275,26 +276,30 @@ pub async fn dispatch_command(
             )
             .await?;
         }
-        "ACL" => {
-            crate::db_handler::acl::handle_acl_command(&mut state.handler, items, &resources.users)
-                .await?;
+        CommandName::Acl => {
+            crate::db_handler::acl::handle_acl_command(
+                &mut state.handler,
+                &items,
+                &resources.users,
+            )
+            .await?;
         }
-        "AUTH" => {
+        CommandName::Auth => {
             crate::db_handler::auth::handle_auth(
                 &mut state.handler,
-                items,
+                &items,
                 &resources.users,
                 &resources.authstate,
             )
             .await?;
         }
 
-        "WATCH" => {
-            let res = crate::db_handler::watch::watch_handler(&resources.db, state, items).await?;
+        CommandName::Watch => {
+            let res = crate::db_handler::watch::watch_handler(&resources.db, state, &items).await?;
             state.handler.write_value(res).await?;
         }
 
-        "UNWATCH" => {
+        CommandName::Unwatch => {
             let mut watch_violated = resources.watch_violated.lock().await;
             *watch_violated = false;
             state

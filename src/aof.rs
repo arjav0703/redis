@@ -4,7 +4,11 @@ use tokio::sync::MutexGuard;
 
 use anyhow::Result;
 
-use crate::types::{resp::RespValue, ServerConfig};
+use crate::types::{
+    commands::{CommandType, RedisCommand},
+    resp::RespValue,
+    ServerConfig,
+};
 
 pub async fn init_aof(server_config: &MutexGuard<'_, ServerConfig>) -> Result<()> {
     if !server_config.appendonly.to_bool() {
@@ -62,16 +66,23 @@ impl ServerConfig {
         parse_aof_manifest(&manifest_path)
     }
 
-    pub fn append_to_aof_file(&self, command: &[RespValue]) -> Result<()> {
+    pub fn append_to_aof_file(&self, command: RedisCommand) -> Result<()> {
         if !self.appendonly.to_bool() {
             return Ok(());
         }
+
+        if command.variant == CommandType::Read {
+            return Ok(());
+        }
+
         let aof_file_name = self.get_aof_file()?;
         let aof_file_path = format!("{}/{}/{}", self.dir, self.appenddirname, aof_file_name);
 
         let mut file = fs::OpenOptions::new().append(true).open(&aof_file_path)?;
-        file.write_all(RespValue::Array(command.to_vec()).encode().as_bytes())?;
+        file.write_all(RespValue::Array(command.args.to_vec()).encode().as_bytes())?;
 
         Ok(())
     }
 }
+
+static NON_MODIFYING_COMMANDS: &[&str] = &["PING", "GET", "ECHO"];
