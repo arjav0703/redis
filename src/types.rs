@@ -24,6 +24,7 @@ pub struct KeyWithExpiry {
     pub is_watched: bool,
 }
 
+#[derive(Debug, Clone)]
 pub struct ServerConfig {
     pub dir: String,
     pub appendonly: AppendOnly,
@@ -35,6 +36,7 @@ pub struct ServerConfig {
     pub port: String,
 }
 
+#[derive(Debug, Clone)]
 pub enum AppendOnly {
     Yes,
     No,

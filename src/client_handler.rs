@@ -55,6 +55,29 @@ pub struct SharedResources {
     pub server_config: Arc<tokio::sync::Mutex<ServerConfig>>,
 }
 
+impl SharedResources {
+    pub fn new(
+        db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>,
+        users: Users,
+        server_config: ServerConfig,
+    ) -> Self {
+        Self {
+            db,
+            replicas: Arc::new(tokio::sync::Mutex::new(Vec::<ReplicaConnection>::new())),
+            blocked_clients: Arc::new(tokio::sync::Mutex::new(Vec::new())),
+            channels_map: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            channel_subscribers: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            users,
+            authstate: Arc::new(tokio::sync::Mutex::new(AuthState {
+                is_authenticated: false,
+                username: "default".to_string(),
+            })),
+            watch_violated: Arc::new(tokio::sync::Mutex::new(false)),
+            server_config: Arc::new(tokio::sync::Mutex::new(server_config)),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct AuthState {
     pub is_authenticated: bool,

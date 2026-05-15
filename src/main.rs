@@ -20,6 +20,7 @@ mod replication;
 
 use client_handler::handle_client;
 
+use crate::aof::replay::replay_commands;
 use crate::{
     aof::init_aof,
     client_handler::{AuthState, SharedResources},
@@ -65,8 +66,6 @@ async fn main() -> Result<()> {
         *db_lock = initial_db;
     }
 
-    let commands = config_lock.get_replay_commands();
-
     if config_lock.is_replica {
         let db_clone = Arc::clone(&db);
         tokio::spawn(async move {
@@ -90,6 +89,11 @@ async fn main() -> Result<()> {
         let mut users_lock = users.lock().await;
         users_lock.insert("default".to_string(), None);
     }
+
+    replay_commands(
+        config_lock.get_replay_commands(),
+        &mut SharedResources::new(db.clone(), users.clone(), config_lock.clone()),
+    )?;
 
     drop(config_lock);
     loop {
