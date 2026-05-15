@@ -29,9 +29,7 @@ impl RespValue {
                 println!("Encoding NullBulkString as $-1\\r\\n");
                 "$-1\r\n".to_string()
             }
-            RespValue::NullArray => {
-                "*-1\r\n".to_string()
-            }
+            RespValue::NullArray => "*-1\r\n".to_string(),
             RespValue::Integer(i) => format!(":{i}\r\n"),
             RespValue::Array(items) => {
                 let mut out = format!("*{}\r\n", items.len());

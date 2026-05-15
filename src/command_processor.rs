@@ -13,15 +13,15 @@ pub async fn process_command(
 ) -> Result<bool> {
     match val {
         RespValue::Array(items) if !items.is_empty() => {
-            resources
-                .server_config
-                .lock()
-                .await
-                .append_to_aof_file(RedisCommand::from_items(&items).unwrap())
-                .unwrap();
-
             if let RespValue::BulkString(cmd) | RespValue::SimpleString(cmd) = &items[0] {
                 let cmd_upper = cmd.to_ascii_uppercase();
+                if let Some(command) = RedisCommand::from_items(&items) {
+                    resources
+                        .server_config
+                        .lock()
+                        .await
+                        .append_to_aof_file(&command)?;
+                }
 
                 // Check if command is allowed in subscribed mode
                 if state.is_subscribed() && !is_allowed_in_subscribed_mode(&cmd_upper) {
@@ -54,7 +54,7 @@ pub async fn process_command(
                         return Ok(true); // Signal to convert to replica
                     }
                 } else {
-                    if let Some(command) = RedisCommand::from_items(&items.clone()) {
+                    if let Some(command) = RedisCommand::from_items(&items) {
                         dispatch_command(command, state, resources).await?;
                     } else {
                         state

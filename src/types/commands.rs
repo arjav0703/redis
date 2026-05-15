@@ -1,17 +1,21 @@
+use enum_display::EnumDisplay;
+
 use crate::types::resp::RespValue;
 
+#[derive(Debug)]
 pub struct RedisCommand {
     pub name: CommandName,
     pub args: Vec<RespValue>,
     pub variant: CommandType,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum CommandType {
     Read,
     Write,
 }
 
+#[derive(Debug, EnumDisplay)]
 pub enum CommandName {
     Ping,
     Echo,
@@ -134,15 +138,24 @@ impl CommandType {
 }
 
 impl RedisCommand {
-    pub fn from_items(items: &Vec<RespValue>) -> Option<Self> {
+    pub fn from_items(items: &[RespValue]) -> Option<Self> {
         let cmd_name = items.first()?.as_string()?;
         let name = CommandName::from_str(&cmd_name);
         let variant = CommandType::from_name(&name);
 
         Some(Self {
             name,
-            args: items.clone(),
+            args: items.to_owned(),
             variant,
         })
+    }
+
+    pub fn from_resp(line: &str) -> Option<Self> {
+        let parsed = RespValue::BulkString(line.to_string());
+        if let RespValue::Array(items) = parsed {
+            Self::from_items(&items)
+        } else {
+            None
+        }
     }
 }

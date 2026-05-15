@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 pub mod cli;
 pub mod parsers;
@@ -64,6 +64,8 @@ async fn main() -> Result<()> {
         let mut db_lock = db.lock().await;
         *db_lock = initial_db;
     }
+
+    let commands = config_lock.get_replay_commands();
 
     if config_lock.is_replica {
         let db_clone = Arc::clone(&db);
