@@ -34,6 +34,8 @@ This is a simple Redis server written in Rust 🦀.
 - `DISARD`
 - `ACL`
 - `AUTH`
+- `WATCH`
+- `UNWATCH`
 
 ### CLI args for the server:
 - `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
