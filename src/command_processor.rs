@@ -12,6 +12,11 @@ pub async fn process_command(
 ) -> Result<bool> {
     match val {
         RespValue::Array(items) if !items.is_empty() => {
+            resources
+                .server_config
+                .lock()
+                .await
+                .append_to_aof_file(&items)?;
             if let RespValue::BulkString(cmd) | RespValue::SimpleString(cmd) = &items[0] {
                 let cmd_upper = cmd.to_ascii_uppercase();
 
@@ -46,7 +51,6 @@ pub async fn process_command(
                         return Ok(true); // Signal to convert to replica
                     }
                 } else {
-                    // Dispatch command to appropriate handler
                     dispatch_command(&cmd_upper, &items, state, resources).await?;
                 }
             }
