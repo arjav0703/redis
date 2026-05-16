@@ -201,6 +201,9 @@ redis-cli -p <MASTER_PORT> SET key value
 redis-cli -p <REPLICA_PORT> GET key
 ```
 
+### AI use disclosure:
+I had tab completions turned on in my code editor <neovim btw ;) > and it helped me with some of the boilerplate code and function signatures, but I wrote all the logic and implementation myself. I also used opencode with GPT5.2 Codex for debugging and doing repetitive tasks (like renaming structs or macro/function calls).
+
 --- 
 <div align="center">
   <a href="https://shipwrecked.hackclub.com/?t=ghrm" target="_blank">
