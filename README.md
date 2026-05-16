@@ -2,6 +2,11 @@
 
 This is a simple Redis server written in Rust 🦀.
 
+
+https://github.com/user-attachments/assets/60b7bb7d-21ae-4322-ab11-83a67206e8a0
+
+
+
 ### Supported Commands (through the redis-cli):
 - `ECHO`
 - `PING`
