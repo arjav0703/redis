@@ -2,10 +2,7 @@
 
 This is a simple Redis server written in Rust 🦀.
 
-
 https://github.com/user-attachments/assets/60b7bb7d-21ae-4322-ab11-83a67206e8a0
-
-
 
 ### Supported Commands (through the redis-cli):
 - `ECHO`
@@ -46,6 +43,8 @@ https://github.com/user-attachments/assets/60b7bb7d-21ae-4322-ab11-83a67206e8a0
 - `--dir <DIR>`: Directory where the rdb file is located (default: current directory)
 - `--dbfilename <DBFILENAME>`: Name of the rdb file (default: dump.rdb)
 - `--port <PORT>`: Port to run the server on (default: 6379)
+- `--replicaof <MASTER_IP> <MASTER_PORT>`: Start the server as a replica of the specified master server
+- `--help: for all the available options`
 
 
 ### How to use: 
