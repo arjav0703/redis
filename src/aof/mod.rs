@@ -11,15 +11,16 @@ use crate::types::{
     resp::{parse_msg, RespValue},
     ServerConfig,
 };
+use tracing::info;
 
 pub async fn init_aof(server_config: &MutexGuard<'_, ServerConfig>) -> Result<()> {
     if !server_config.appendonly.to_bool() {
-        println!("AOF is disabled, skipping AOF initialization.");
+        info!("AOF is disabled, skipping AOF initialization.");
         return Ok(());
     }
 
     let aof_dir_path = format!("{}/{}", server_config.dir, server_config.appenddirname,);
-    dbg!(&aof_dir_path);
+    info!("AOF dir path: {aof_dir_path}");
     fs::create_dir(&aof_dir_path).or_else(|e| {
         if e.kind() == std::io::ErrorKind::AlreadyExists {
             Ok(())
@@ -32,7 +33,7 @@ pub async fn init_aof(server_config: &MutexGuard<'_, ServerConfig>) -> Result<()
         "{}/{}.1.incr.aof",
         aof_dir_path, server_config.appendfilename
     );
-    dbg!(&aof_file_path);
+    info!("AOF file path: {aof_file_path}");
     if !std::path::Path::new(&aof_file_path).exists() {
         fs::write(&aof_file_path, "")?;
     }
@@ -102,9 +103,9 @@ impl ServerConfig {
 
     pub fn get_replay_commands(&self) -> Vec<RedisCommand> {
         if !self.appendonly.to_bool() {
-            println!("AOF is disabled, no commands to replay.");
-            return vec![];
-        }
+        info!("AOF is disabled, no commands to replay.");
+        return vec![];
+    }
 
         let aof_file_name = match self.get_aof_file() {
             Ok(name) => name,

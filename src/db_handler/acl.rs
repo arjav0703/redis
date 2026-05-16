@@ -1,4 +1,5 @@
 use super::*;
+use tracing::info;
 use sha2::Digest;
 
 pub async fn handle_acl_command(
@@ -61,7 +62,7 @@ pub async fn handle_acl_command(
             let mut users = users.lock().await;
             let username = items[2].as_string().unwrap();
             let password = items[3].as_string().unwrap()[1..].to_string();
-            dbg!(&username, &password);
+            info!("ACL SETUSER: {username}");
 
             users.insert(username, Some(password));
 

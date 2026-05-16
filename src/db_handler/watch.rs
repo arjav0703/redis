@@ -1,4 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
+use tracing::info;
 
 use anyhow::Result;
 
@@ -41,7 +42,7 @@ pub async fn watch_handler(
             },
         );
 
-        println!(
+        info!(
             "Client is watching key: {}",
             key.as_string().unwrap_or_default()
         );

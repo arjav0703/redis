@@ -3,6 +3,7 @@ use crate::types::{
     KeyWithExpiry,
 };
 use anyhow::{Ok, Result};
+use tracing::info;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -89,7 +90,7 @@ pub async fn handle_xrange(
     let db = db.lock().await;
 
     let entry: KeyWithExpiry = db.get(&stream_key).unwrap().clone();
-    dbg!(&entry);
+    info!("Stream entry: {entry:?}");
     let stream = match &entry.value {
         crate::types::ValueType::Stream(s) => s,
         _ => {
@@ -103,7 +104,7 @@ pub async fn handle_xrange(
     };
 
     let range = stream.get_range(&start_id, &end_id);
-    dbg!(&range);
+    info!("Stream range: {range:?}");
 
     let mut resp_array = Vec::new();
     for stream_entry in range {

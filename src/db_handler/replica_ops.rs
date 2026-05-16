@@ -3,6 +3,7 @@ use crate::types::{
     KeyWithExpiry,
 };
 use anyhow::{Ok, Result};
+use tracing::info;
 use rand::distr::Alphanumeric;
 use rand::Rng;
 use std::collections::HashMap;
@@ -32,13 +33,13 @@ pub async fn handle_replconf(items: &[RespValue], handler: &mut RespHandler) -> 
 
         if subcommand.eq_ignore_ascii_case("listening-port") {
             let port = items[2].as_integer().unwrap_or(0);
-            println!("REPLCONF listening-port: {port}");
+            info!("REPLCONF listening-port: {port}");
         } else if subcommand.eq_ignore_ascii_case("capa") {
             let capability = items[2].as_string().unwrap_or_default();
-            println!("REPLCONF capa: {capability}");
+            info!("REPLCONF capa: {capability}");
         } else if subcommand.eq_ignore_ascii_case("ack") {
             let offset = items[2].as_integer().unwrap_or(0);
-            println!("REPLCONF ack: {offset}");
+            info!("REPLCONF ack: {offset}");
             handler
                 .write_bytes(b"*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n")
                 .await?;
@@ -66,7 +67,7 @@ pub async fn handle_psync(
         } else {
             0
         };
-        println!("PSYNC request: id={replication_id}, offset={offset}");
+        info!("PSYNC request: id={replication_id}, offset={offset}");
 
         // Get the master's replication ID from environment or generate a new one
         let master_replication_id = env::var("replication_id").unwrap_or_else(|_| {

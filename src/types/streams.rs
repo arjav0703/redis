@@ -1,4 +1,5 @@
 use super::{RespHandler, RespValue};
+use tracing::info;
 use anyhow::{anyhow, Result};
 
 #[derive(Debug, Clone)]
@@ -64,13 +65,13 @@ impl Stream {
             if id_parts[0] == largest_ms {
                 if let Ok(largest_seq_num) = largest_seq.parse::<u64>() {
                     let id = format!("{}-{}", id_parts[0], largest_seq_num + 1);
-                    dbg!(&id);
+                    info!("Generated stream id: {id}");
                     return id;
                 }
             } else {
                 // If the millisecond part is different, start sequence at 0
                 let id = format!("{}-0", id_parts[0]);
-                dbg!(&id);
+                info!("Generated stream id: {id}");
                 return id;
             }
         }
@@ -126,7 +127,7 @@ impl Stream {
         }
 
         let largest_id = self.get_largest_id().unwrap_or("0-0");
-        dbg!(&largest_id);
+        info!("Largest stream id: {largest_id}");
         let largest_parts: Vec<&str> = largest_id.split('-').collect();
         let largest_ms: u64 = largest_parts[0].parse().unwrap_or(0);
         let largest_seq: u64 = largest_parts[1].parse().unwrap_or(0);

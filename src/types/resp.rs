@@ -1,6 +1,7 @@
 /// Pretty obvious
 use crate::parsers::{parse_array, parse_bulk, parse_int, parse_simple};
 use anyhow::{anyhow, Result};
+use tracing::info;
 use bytes::Buf;
 use bytes::BytesMut;
 use tokio::{
@@ -26,7 +27,7 @@ impl RespValue {
             RespValue::SimpleError(s) => format!("-{s}\r\n"),
             RespValue::BulkString(s) => format!("${}\r\n{s}\r\n", s.len()),
             RespValue::NullBulkString => {
-                println!("Encoding NullBulkString as $-1\\r\\n");
+                info!("Encoding NullBulkString as $-1\\r\\n");
                 "$-1\r\n".to_string()
             }
             RespValue::NullArray => "*-1\r\n".to_string(),

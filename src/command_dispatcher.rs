@@ -322,7 +322,7 @@ pub async fn dispatch_command(
 /// Handle REPLCONF command
 async fn handle_replconf_command(handler: &mut RespHandler, items: &[RespValue]) -> Result<()> {
     let slave_ip = handler.get_peer_addr().unwrap();
-    dbg!(&slave_ip);
+    tracing::info!("REPLCONF peer addr: {slave_ip}");
     std::env::set_var("slave_ip", slave_ip.to_string());
     replica_ops::handle_replconf(items, handler).await
 }

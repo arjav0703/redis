@@ -1,4 +1,5 @@
 use super::*;
+use tracing::info;
 use std::result::Result::Ok;
 
 mod helper;
@@ -54,7 +55,7 @@ pub async fn exec(
     }
 
     if *watch_violated {
-        println!("Transaction aborted due to watched key modification");
+        info!("Transaction aborted due to watched key modification");
         handler.write_value(RespValue::NullArray).await?;
         queued_commands.clear();
         *watch_violated = false;

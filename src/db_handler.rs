@@ -4,6 +4,7 @@ use crate::types::{
 };
 use crate::Users;
 use anyhow::{Ok, Result};
+use tracing::info;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -58,8 +59,8 @@ pub async fn get_key(
     handler: &mut RespHandler,
 ) -> Result<()> {
     let key = items[1].as_string().unwrap_or_default();
-    println!("GET request for key: {key}");
-    println!("Current DB state: {db:?}");
+    info!("GET request for key: {key}");
+    info!("Current DB state: {db:?}");
     let mut db = db.lock().await;
 
     // Check if the key exists and hasn't expired
@@ -68,7 +69,7 @@ pub async fn get_key(
             if expiry <= Instant::now() {
                 db.remove(&key);
                 handler.write_value(RespValue::NullBulkString).await?;
-                println!("Key expired: {key}");
+                info!("Key expired: {key}");
                 return Ok(());
             }
         }
@@ -78,7 +79,7 @@ pub async fn get_key(
                 handler
                     .write_value(RespValue::BulkString(s.clone()))
                     .await?;
-                println!("Value found: {}", s);
+                info!("Value found: {}", s);
             }
             _ => {
                 // GET on a stream should return an error or null
@@ -128,7 +129,7 @@ async fn del_key_internal(
         let key = items[i].as_string().unwrap_or_default();
         if db.remove(&key).is_some() {
             deleted_count += 1;
-            println!("Deleted key: {key}");
+            info!("Deleted key: {key}");
         }
     }
     Ok(deleted_count)

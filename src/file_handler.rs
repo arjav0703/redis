@@ -1,5 +1,6 @@
 use crate::types::KeyWithExpiry;
 use anyhow::{Ok, Result};
+use tracing::info;
 use std::collections::HashMap;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::fs::File;
@@ -7,7 +8,7 @@ use tokio::io::AsyncReadExt;
 
 pub async fn read_rdb_file(dir: &str, dbfilename: &str) -> Result<HashMap<String, KeyWithExpiry>> {
     let path = format!("{dir}/{dbfilename}");
-    dbg!(&path);
+    info!("RDB path: {path}");
     if tokio::fs::metadata(&path).await.is_err() {
         return Ok(HashMap::new());
     }

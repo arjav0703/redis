@@ -1,6 +1,7 @@
 use crate::db_handler;
 use crate::types::resp::{RespHandler, RespValue};
 use crate::types::KeyWithExpiry;
+use tracing::info;
 use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
@@ -21,7 +22,7 @@ impl ReplicaConfig {
 
     async fn handshake(&self, handler: &mut RespHandler) {
         // Send Ping
-        println!("Replica: Sending PING");
+        info!("Replica: Sending PING");
         handler
             .write_value(RespValue::Array(vec![RespValue::BulkString(
                 "PING".to_string(),
@@ -32,12 +33,12 @@ impl ReplicaConfig {
             .read_value()
             .await
             .expect("Failed to read PING response");
-        println!("Replica: PING OK");
+        info!("Replica: PING OK");
 
         let listening_port = env::var("port").unwrap_or_else(|_| "6379".to_string());
 
         // Send REPLCONF listening-port <port>
-        println!("Replica: Sending REPLCONF listening-port");
+        info!("Replica: Sending REPLCONF listening-port");
         handler
             .write_value(RespValue::Array(vec![
                 RespValue::BulkString("REPLCONF".to_string()),
@@ -50,10 +51,10 @@ impl ReplicaConfig {
             .read_value()
             .await
             .expect("Failed to read REPLCONF listening-port response");
-        println!("Replica: REPLCONF listening-port OK");
+        info!("Replica: REPLCONF listening-port OK");
 
         // Send REPLCONF capa psync2
-        println!("Replica: Sending REPLCONF capa");
+        info!("Replica: Sending REPLCONF capa");
         handler
             .write_value(RespValue::Array(vec![
                 RespValue::BulkString("REPLCONF".to_string()),
@@ -66,10 +67,10 @@ impl ReplicaConfig {
             .read_value()
             .await
             .expect("Failed to read REPLCONF capa response");
-        println!("Replica: REPLCONF capa OK");
+        info!("Replica: REPLCONF capa OK");
 
         // send psync command
-        println!("Replica: Sending PSYNC");
+        info!("Replica: Sending PSYNC");
         handler
             .write_value(RespValue::Array(vec![
                 RespValue::BulkString("PSYNC".to_string()),
@@ -79,19 +80,19 @@ impl ReplicaConfig {
             .await
             .expect("Failed to send PSYNC");
 
-        println!("Replica: Sent PSYNC, waiting for response...");
+        info!("Replica: Sent PSYNC, waiting for response...");
 
         // Read FULLRESYNC response
         let fullresync = handler
             .read_value()
             .await
             .expect("Failed to read FULLRESYNC response");
-        println!("Replica: Received FULLRESYNC response: {:?}", fullresync);
+        info!("Replica: Received FULLRESYNC response: {:?}", fullresync);
 
         // Read and discard the empty RDB file
         // NOTE: The test master sends RDB as $<len>\r\n<data> WITHOUT trailing \r\n
         // This is non-standard RESP, so we must handle it manually
-        println!("Replica: Reading empty RDB file header...");
+        info!("Replica: Reading empty RDB file header...");
 
         // Manually parse the bulk string header: $<len>\r\n
         // We'll read until we get the full header, then read exactly <len> bytes
@@ -116,7 +117,7 @@ impl ReplicaConfig {
                             if let Ok(len) = len_str.parse::<usize>() {
                                 rdb_len = len;
                                 found_header = true;
-                                println!("Replica: RDB file size: {} bytes", rdb_len);
+                                info!("Replica: RDB file size: {} bytes", rdb_len);
                             }
                         }
                     }
@@ -131,12 +132,12 @@ impl ReplicaConfig {
                 .read_raw_bytes(rdb_len)
                 .await
                 .expect("Failed to read RDB data");
-            println!("Replica: Read {}-byte RDB file", rdb_len);
+            info!("Replica: Read {}-byte RDB file", rdb_len);
         } else {
             panic!("Failed to read RDB header");
         }
 
-        println!("Replica: Handshake complete, ready to receive commands");
+        info!("Replica: Handshake complete, ready to receive commands");
 
         // Give a small moment for any pending commands to arrive in the buffer
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
@@ -145,7 +146,7 @@ impl ReplicaConfig {
 
 pub async fn replica_handler(db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithExpiry>>>) {
     let replicaof = env::var("replicaof").unwrap_or_default();
-    println!("Replica: Starting with replicaof={}", replicaof);
+    info!("Replica: Starting with replicaof={}", replicaof);
 
     let (mut host, port) = replicaof.split_once(" ").expect("Invalid replicaof format");
 
@@ -156,11 +157,11 @@ pub async fn replica_handler(db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithE
     let master = ReplicaConfig::new(host.to_string(), port.to_string());
 
     let url = format!("{}:{}", master.host, master.port);
-    println!("Replica: Connecting to master at {}", url);
+    info!("Replica: Connecting to master at {}", url);
 
     let stream = match tokio::net::TcpStream::connect(&url).await {
         Ok(s) => {
-            println!("Replica: Connected to master");
+            info!("Replica: Connected to master");
             s
         }
         Err(e) => {
@@ -171,11 +172,11 @@ pub async fn replica_handler(db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithE
 
     let mut handler = RespHandler::new(stream);
 
-    println!("Replica: Starting handshake");
+    info!("Replica: Starting handshake");
     master.handshake(&mut handler).await;
-    println!("Replica: Handshake complete");
+    info!("Replica: Handshake complete");
 
-    println!("Replica: Listening for commands from master...");
+    info!("Replica: Listening for commands from master...");
 
     let mut command_count = 0;
     // offset in bytes of commands processed so far
@@ -184,7 +185,7 @@ pub async fn replica_handler(db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithE
         match handler.read_value_with_size().await {
             std::result::Result::Ok(Some((val, used_bytes))) => {
                 command_count += 1;
-                println!("Replica: Received command #{}: {:?}", command_count, val);
+                info!("Replica: Received command #{}: {:?}", command_count, val);
                 // We must respond to GETACK with the offset that does NOT include the
                 // GETACK command itself. So capture the current offset now.
                 if let RespValue::Array(items) = &val {
@@ -193,24 +194,24 @@ pub async fn replica_handler(db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithE
                             let cmd_upper = cmd.to_ascii_uppercase();
                             match cmd_upper.as_str() {
                                 "SET" if items.len() >= 3 => {
-                                    println!("Replica: Processing SET command");
+                                    info!("Replica: Processing SET command");
                                     if let Err(e) =
                                         db_handler::set_key::set_key_silent(&db, items, &mut false)
                                             .await
                                     {
                                         eprintln!("Replica: Error processing SET: {}", e);
                                     } else {
-                                        println!("Replica: Successfully processed SET");
+                                        info!("Replica: Successfully processed SET");
                                     }
                                     // After processing, add the full RESP array byte length
                                     offset += used_bytes as i64;
                                 }
                                 "DEL" if items.len() >= 2 => {
-                                    println!("Replica: Processing DEL command");
+                                    info!("Replica: Processing DEL command");
                                     if let Err(e) = db_handler::del_key_silent(&db, items).await {
                                         eprintln!("Replica: Error processing DEL: {}", e);
                                     } else {
-                                        println!("Replica: Successfully processed DEL");
+                                        info!("Replica: Successfully processed DEL");
                                     }
                                     offset += used_bytes as i64;
                                 }
@@ -232,13 +233,13 @@ pub async fn replica_handler(db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithE
                                                     e
                                                 );
                                             } else {
-                                                println!("Replica: Sent REPLCONF ACK {}", ack_str);
+                                                info!("Replica: Sent REPLCONF ACK {}", ack_str);
                                             }
                                             // Important: only after replying do we add the GETACK command's
                                             // own byte length to the offset (rule: exclude current GETACK).
                                             offset += used_bytes as i64;
                                         } else {
-                                            println!(
+                                            info!(
                                                 "Replica: REPLCONF subcommand ignored: {}",
                                                 sub
                                             );
@@ -251,7 +252,7 @@ pub async fn replica_handler(db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithE
                                     }
                                 }
                                 _ => {
-                                    println!("Replica: Ignored command: {}", cmd_upper);
+                                    info!("Replica: Ignored command: {}", cmd_upper);
                                     // Even ignored commands should contribute to the offset
                                     offset += used_bytes as i64;
                                 }
@@ -265,13 +266,13 @@ pub async fn replica_handler(db: Arc<tokio::sync::Mutex<HashMap<String, KeyWithE
                         offset += used_bytes as i64;
                     }
                 } else {
-                    println!("Replica: Received non-array value: {:?}", val);
+                    info!("Replica: Received non-array value: {:?}", val);
                     // Count the bytes of the non-array value
                     offset += used_bytes as i64;
                 }
             }
             std::result::Result::Ok(None) => {
-                println!("Replica: Master connection closed");
+                info!("Replica: Master connection closed");
                 break;
             }
             Err(e) => {

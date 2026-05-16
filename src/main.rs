@@ -1,8 +1,9 @@
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 use tokio::sync::mpsc;
+use tracing::{debug, info};
 pub mod cli;
 pub mod parsers;
 mod types;
@@ -17,12 +18,14 @@ mod db_handler;
 mod file_handler;
 mod replica;
 mod replication;
+mod telemetry;
 
 use client_handler::handle_client;
 
-use crate::aof::replay::replay_commands;
-use crate::{
-    aof::init_aof,
+use crate::telemetry::init_telemetry;
+
+use {
+    aof::{init_aof, replay::replay_commands},
     client_handler::{AuthState, SharedResources},
     db_handler::acl,
     types::ServerConfig,
@@ -43,6 +46,8 @@ pub type ChannelSubscribers =
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    init_telemetry();
+
     let server_config: Arc<tokio::sync::Mutex<ServerConfig>> =
         Arc::new(tokio::sync::Mutex::new(ServerConfig::from_cli()));
     let config_lock = server_config.lock().await;
@@ -51,13 +56,12 @@ async fn main() -> Result<()> {
     set_env_vars();
     let url = format!("127.0.0.1:{port}");
 
-    println!("Mini‑Redis listening on {url}");
+    info!("Redis Server listening on {url}");
     let listener = TcpListener::bind(url).await?;
 
     init_aof(&config_lock).await?;
-
     let initial_db = file_handler::read_rdb_file(&config_lock.dir, &config_lock.dbfilename).await?;
-    println!("Initial DB state from RDB file: {initial_db:?}");
+    info!("Initial DB state from RDB file: {initial_db:?}");
     let db = Arc::new(tokio::sync::Mutex::new(
         HashMap::<String, KeyWithExpiry>::new(),
     ));
@@ -69,9 +73,9 @@ async fn main() -> Result<()> {
     if config_lock.is_replica {
         let db_clone = Arc::clone(&db);
         tokio::spawn(async move {
-            println!("Starting replica handler...");
+            info!("Starting replica handler...");
             replica::replica_handler(db_clone).await;
-            println!("Replica handler terminated");
+            info!("Replica handler terminated");
         });
         // Give the replica handler a moment to start
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;

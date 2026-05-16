@@ -13,6 +13,7 @@ use crate::{
     Users,
 };
 use crate::{BlockedClients, ChannelSubscribers};
+use tracing::info;
 
 /// Client state for managing connection-level context
 pub struct ClientState {
@@ -108,7 +109,7 @@ pub async fn handle_client(stream: TcpStream, resources: SharedResources) -> Res
                     let connected_replicas = replicas_guard.len();
                     std::env::set_var("connected_replicas", connected_replicas.to_string());
 
-                    println!("Added new replica connection. Total replicas: {}", connected_replicas);
+                    info!("Added new replica connection. Total replicas: {}", connected_replicas);
                     return Ok(());
                 }
             }

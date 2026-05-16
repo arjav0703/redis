@@ -5,6 +5,7 @@ use crate::{
     db_handler::set_key::set_key_internal,
     types::commands::{CommandName, RedisCommand},
 };
+use tracing::info;
 
 pub fn replay_commands(
     items: Vec<RedisCommand>,
@@ -19,7 +20,7 @@ pub fn replay_commands(
                     set_key_internal(&db, &item.args, &mut false).await.unwrap();
                 }
                 _ => {
-                    println!("Unsupported command in AOF replay: {:?}", item.name);
+                    info!("Unsupported command in AOF replay: {:?}", item.name);
                 }
             }
         });

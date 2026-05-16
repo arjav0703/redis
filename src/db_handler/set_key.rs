@@ -1,4 +1,5 @@
 use super::*;
+use tracing::info;
 
 /// Pretty self explainatory: used to swt a key into the db
 pub async fn set_key(
@@ -41,7 +42,7 @@ pub async fn set_key_internal(
             if let Some(px_ms) = items.get(4).and_then(|v| v.as_integer()) {
                 if px_ms > 0 {
                     expiry = Some(Instant::now() + Duration::from_millis(px_ms as u64));
-                    println!("PX detected: {px_ms}ms");
+                    info!("PX detected: {px_ms}ms");
                 }
             }
         }
@@ -51,7 +52,7 @@ pub async fn set_key_internal(
         let mut db = db.lock().await;
 
         if let Some(existing_entry) = db.get(&key) {
-            println!("Key already exists: {key}, checking for watch violation");
+            info!("Key already exists: {key}, checking for watch violation");
             if existing_entry.is_watched {
                 *watch_violated = true;
             }
@@ -65,7 +66,7 @@ pub async fn set_key_internal(
                 is_watched: false,
             },
         );
-        println!("Current DB state: {db:?}");
+        info!("Current DB state: {db:?}");
     }
 
     // Start a background task to handle expiry if needed
@@ -87,7 +88,7 @@ pub async fn set_key_internal(
                     if let Some(entry_expiry) = entry.expiry {
                         if entry_expiry <= Instant::now() {
                             db.remove(&key_clone);
-                            println!("Key expired and removed: {key_clone}");
+                            info!("Key expired and removed: {key_clone}");
                         }
                     }
                 }
